@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kelas Management</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Include Navbar -->
+    {% include '_navbar.html' %}
+
+    <div class="container mt-5">
+      <h1>Kelas Management</h1>
+      <a href="{% url 'kelas_create' %}" class="btn btn-primary mb-3"
+        >Tambah Kelas</a
+      >
+      <table class="table table-bordered">
+        <thead class="table-dark">
+          <tr>
+            <th>Nama Kelas</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for k in kelas %}
+          <tr>
+            <td>{{ k.nama_kelas }}</td>
+            <td>
+              <a
+                href="{% url 'kelas_update' k.pk %}"
+                class="btn btn-warning btn-sm"
+                >Edit</a
+              >
+              <a
+                href="{% url 'kelas_delete' k.pk %}"
+                class="btn btn-danger btn-sm"
+                >Hapus</a
+              >
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

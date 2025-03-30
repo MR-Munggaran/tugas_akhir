@@ -1,0 +1,7 @@
+backend-akhir/
+*.pyc
+*__pycache__/
+*.sqlite3
+*.env
+*.secret
+/staticfiles/

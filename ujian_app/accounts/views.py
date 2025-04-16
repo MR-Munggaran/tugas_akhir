@@ -1,8 +1,12 @@
+from django.utils import timezone
+from datetime import datetime, timedelta
+from django.utils.timezone import make_aware
+import pytz
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .forms import GuruRegistrationForm, SiswaCreationForm, SiswaForm, KelasForm, UjianForm, SoalForm
-from .models import Siswa, Kelas, LogMasukStudent, User, Ujian, Soal
+from .models import Siswa, Kelas, LogMasukStudent, User, Ujian, Soal, HasilUjian
 
 # Cek apakah user adalah guru atau admin
 def is_guru_or_admin(user):
@@ -154,9 +158,17 @@ def ujian_create(request):
         form = UjianForm(request.POST)
         if form.is_valid():
             ujian = form.save(commit=False)
-            ujian.guru = request.user  # Set guru yang membuat ujian
+            ujian.guru = request.user
+            
+            # Hapus dua baris ini
+            # local_tz = pytz.timezone('Asia/Jakarta')
+            # ujian.waktu_mulai = make_aware(ujian.waktu_mulai, local_tz)
+            # ujian.waktu_selesai = make_aware(ujian.waktu_selesai, local_tz)
+            
             ujian.save()
             return redirect('ujian_list')
+        else:
+            return render(request, 'exams/ujian_form.html', {'form': form})
     else:
         form = UjianForm()
     return render(request, 'exams/ujian_form.html', {'form': form})
@@ -234,8 +246,106 @@ def akses_ujian(request):
         code = request.POST.get('code')
         try:
             ujian = Ujian.objects.get(code=code)
-            return redirect('soal_list', ujian_id=ujian.id)
+            # Render halaman konfirmasi
+            return render(request, 'exams/confirm_ujian.html', {'ujian': ujian})
         except Ujian.DoesNotExist:
             error = "Code ujian tidak valid."
             return render(request, 'exams/akses_ujian.html', {'error': error})
     return render(request, 'exams/akses_ujian.html')
+
+
+@login_required
+def kerjakan_ujian(request, ujian_id):
+    ujian = get_object_or_404(Ujian, pk=ujian_id)
+    soal_list = Soal.objects.filter(ujian=ujian)
+    now = timezone.now()  # Waktu server dengan timezone
+    
+    # Debug: Cek waktu sekarang dan waktu ujian
+    print("Waktu Sekarang:", now)
+    print("Waktu Mulai Ujian:", ujian.waktu_mulai)
+    print("Waktu Selesai Ujian:", ujian.waktu_selesai)
+    
+    # Cek apakah sudah mengerjakan
+    if HasilUjian.objects.filter(siswa=request.user, ujian=ujian).exists():
+        return redirect('nilai_detail', ujian_id=ujian.id)
+    
+    # Cek waktu ujian
+    if ujian.waktu_mulai and now < ujian.waktu_mulai:
+        return render(request, 'exams/belum_mulai.html', {
+            'ujian': ujian,
+            'now': now  # Kirim ke template untuk debugging
+        })
+    if ujian.waktu_selesai and now > ujian.waktu_selesai:
+        return render(request, 'exams/sudah_selesai.html', {'ujian': ujian})
+    
+    # ... kode lainnya ...
+    
+    if request.method == 'POST':
+        # Hitung waktu sisa
+        waktu_mulai = request.session.get(f'waktu_mulai_{ujian.id}')
+        if waktu_mulai:
+            waktu_mulai = datetime.fromisoformat(waktu_mulai)
+            waktu_habis = waktu_mulai + timedelta(minutes=ujian.durasi_menit)
+            if timezone.now() > waktu_habis:
+                return render(request, 'exams/waktu_habis.html')
+        
+        # Proses jawaban seperti sebelumnya
+        jawaban_siswa = {}
+        benar = 0
+        for soal in soal_list:
+            jawaban = request.POST.get(f'soal_{soal.id}')
+            if jawaban == soal.jawaban_benar:
+                benar += 1
+        
+        nilai = (benar / soal_list.count()) * 100 if soal_list.count() > 0 else 0
+        
+        HasilUjian.objects.create(
+            siswa=request.user,
+            ujian=ujian,
+            nilai=nilai
+        )
+        
+        # Hapus session waktu
+        if f'waktu_mulai_{ujian.id}' in request.session:
+            del request.session[f'waktu_mulai_{ujian.id}']
+        
+        return redirect('nilai_detail', ujian_id=ujian.id)
+    
+    # Set waktu mulai di session
+    request.session[f'waktu_mulai_{ujian.id}'] = timezone.now().isoformat()
+    waktu_habis = timezone.now() + timedelta(minutes=ujian.durasi_menit)
+    
+    return render(request, 'exams/kerjakan_ujian.html', {
+        'ujian': ujian,
+        'soal_list': soal_list,
+        'waktu_habis': waktu_habis.isoformat(),
+        'durasi_detik': ujian.durasi_detik
+    })
+
+# Untuk siswa melihat nilai mereka
+@login_required
+def nilai_siswa(request):
+    nilai_list = HasilUjian.objects.filter(siswa=request.user)
+    return render(request, 'grades/nilai_siswa.html', {
+        'nilai_list': nilai_list
+    })
+
+# Untuk guru melihat nilai semua siswa
+@login_required
+def nilai_guru(request, ujian_id):
+    ujian = get_object_or_404(Ujian, pk=ujian_id, guru=request.user)
+    nilai_list = HasilUjian.objects.filter(ujian=ujian)
+    return render(request, 'grades/nilai_guru.html', {
+        'ujian': ujian,
+        'nilai_list': nilai_list
+    })
+
+# Detail nilai per ujian
+@login_required
+def nilai_detail(request, ujian_id):
+    ujian = get_object_or_404(Ujian, pk=ujian_id)
+    hasil = get_object_or_404(HasilUjian, siswa=request.user, ujian=ujian)
+    return render(request, 'grades/nilai_detail.html', {
+        'ujian': ujian,
+        'hasil': hasil
+    })

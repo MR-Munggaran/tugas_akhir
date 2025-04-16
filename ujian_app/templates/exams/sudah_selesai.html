@@ -1,0 +1,8 @@
+<div class="container mt-5">
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Ujian Sudah Selesai!</h4>
+        <p>Ujian "{{ ujian.nama }}" telah berakhir pada:</p>
+        <p class="mb-0"><strong>{{ ujian.waktu_selesai|date:"d F Y H:i" }}</strong></p>
+    </div>
+    <a href="{% url 'nilai_detail' %}" class="btn btn-primary">Kembali ke Daftar Ujian</a>
+</div>

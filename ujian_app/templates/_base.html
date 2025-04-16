@@ -1,0 +1,20 @@
+<!-- base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% load bootstrap5 %}
+    {% bootstrap_css %}
+    {% bootstrap_javascript %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ujian App{% endblock %}</title>
+</head>
+<body>
+    {% include '_navbar.html' %}
+    
+    <div class="container mt-5">
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>

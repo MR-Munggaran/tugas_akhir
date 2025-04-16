@@ -1,69 +1,55 @@
-<!-- <nav class="navbar navbar-expand-lg bg-body-tertiary navbar-dark bg-dark"> -->
-<nav
-  class="navbar navbar-expand-lg bg-body-tertiary bg-dark border-bottom border-body navbar-dark"
-  data-bs-theme="dark"
->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-body" data-bs-theme="dark">
   <div class="container">
     <a class="navbar-brand" href="{% url 'dashboard' %}">Ujian App</a>
-    <button
-      class="navbar-toggler"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#navbarSupportedContent"
-      aria-controls="navbarSupportedContent"
-      aria-expanded="false"
-      aria-label="Toggle navigation"
-    >
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a
-            class="nav-link active"
-            aria-current="page"
-            href="{% url 'dashboard' %}"
-            >Home</a
-          >
+          <a class="nav-link active" aria-current="page" href="{% url 'dashboard' %}">Home</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'ujian_list' %}">List Exam</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'akses_ujian' %}">Access</a>
-        </li>
+        
+        <!-- Menu untuk Guru/Admin -->
+        {% if request.user.is_guru or request.user.is_superuser %}
         <li class="nav-item dropdown">
-          <a
-            class="nav-link dropdown-toggle"
-            href="#"
-            role="button"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-          >
-            Student Management
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Exam Management
           </a>
-          <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-            <li>
-              <a class="dropdown-item" href="{% url 'student_list' %}"
-                >Student List</a
-              >
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'kelas_list' %}"
-                >Kelas Management</a
-              >
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'log_masuk_student' %}"
-                >Log Masuk Student</a
-              >
-            </li>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'ujian_list' %}">List Ujian</a></li>
+            <li><a class="dropdown-item" href="{% url 'ujian_create' %}">Buat Ujian</a></li>
           </ul>
         </li>
+        
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Student Management
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'student_list' %}">Student List</a></li>
+            <li><a class="dropdown-item" href="{% url 'kelas_list' %}">Kelas Management</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'log_masuk_student' %}">Log Masuk Student</a></li>
+          </ul>
+        </li>
+        {% endif %}
+        
+        <!-- Menu untuk Siswa -->
+        {% if request.user.is_siswa %}
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'akses_ujian' %}">Akses Ujian</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'nilai_siswa' %}">Nilai Saya</a>
+        </li>
+        {% endif %}
       </ul>
-      <a class="btn btn-danger" type="submit" href="{% url 'logout' %}"
-        >Logout</a
-      >
+      
+      <div class="d-flex align-items-center">
+        <span class="text-light me-3">Hi, {{ request.user.username }}</span>
+        <a class="btn btn-outline-light" href="{% url 'logout' %}">Logout</a>
+      </div>
     </div>
   </div>
 </nav>

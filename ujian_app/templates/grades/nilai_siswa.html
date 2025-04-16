@@ -1,0 +1,36 @@
+<!-- dashboard.html -->
+{% extends '_base.html' %}
+
+{% block title %}Nilai Siswa{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="my-4">Nilai Saya</h1>
+  <table class="table table-striped">
+      <thead>
+          <tr>
+              <th>Ujian</th>
+              <th>Nilai</th>
+              <th>Tanggal</th>
+              <th>Aksi</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for nilai in nilai_list %}
+          <tr>
+              <td>{{ nilai.ujian.nama_ujian }}</td>
+              <td>{{ nilai.nilai|floatformat:2 }}</td>
+              <td>{{ nilai.tanggal_selesai|date:"d M Y" }}</td>
+              <td>
+                  <a href="{% url 'nilai_detail' nilai.ujian.id %}" class="btn btn-info btn-sm">Detail</a>
+              </td>
+          </tr>
+          {% empty %}
+          <tr>
+              <td colspan="4">Belum ada nilai</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+</div>
+{% endblock %}

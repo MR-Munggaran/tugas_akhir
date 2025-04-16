@@ -36,4 +36,9 @@ urlpatterns = [
 
     # Akses Ujian oleh Siswa
     path('ujian/akses/', views.akses_ujian, name='akses_ujian'),
+
+    path('ujian/<int:ujian_id>/kerjakan/', views.kerjakan_ujian, name='kerjakan_ujian'),
+    path('nilai/', views.nilai_siswa, name='nilai_siswa'),
+    path('nilai/<int:ujian_id>/', views.nilai_guru, name='nilai_guru'),
+    path('nilai/<int:ujian_id>/detail/', views.nilai_detail, name='nilai_detail'),
 ]

@@ -1,0 +1,11 @@
+<div class="container mt-5">
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">Ujian Belum Dimulai!</h4>
+        <p>Waktu Sekarang: {{ now }}</p>
+        <p>Waktu Mulai Ujian: {{ ujian.waktu_mulai }}</p>
+        <p>Waktu Selesai Ujian: {{ ujian.waktu_selesai }}</p>
+        <p>Ujian "{{ ujian.nama }}" akan dimulai pada:</p>
+        <p class="mb-0"><strong>{{ ujian.waktu_mulai|date:"d F Y H:i" }}</strong></p>
+    </div>
+    <a href="{% url 'dashboard' %}" class="btn btn-primary">Kembali ke Daftar Ujian</a>
+</div>

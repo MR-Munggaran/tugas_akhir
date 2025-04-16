@@ -36,15 +36,19 @@ class Ujian(models.Model):
     deskripsi = models.TextField(blank=True, null=True)
     tanggal_dibuat = models.DateTimeField(auto_now_add=True)
     guru = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ujian_dibuat')
-    code = models.CharField(max_length=10, unique=True, blank=True)  # Field untuk code unik
-
+    code = models.CharField(max_length=10, unique=True, blank=True)
+    durasi_menit = models.PositiveIntegerField(default=60)  # Durasi dalam menit
+    waktu_mulai = models.DateTimeField(null=True, blank=True)  # Untuk ujian terjadwal
+    waktu_selesai = models.DateTimeField(null=True, blank=True)
+    
     def save(self, *args, **kwargs):
-        if not self.code:  # Generate code jika belum ada
-            self.code = str(uuid.uuid4())[:8].upper()  # Generate code 8 karakter
+        if not self.code:
+            self.code = str(uuid.uuid4())[:8].upper()
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.nama_ujian
+    
+    @property
+    def durasi_detik(self):
+        return self.durasi_menit * 60
 
 class Soal(models.Model):
     ujian = models.ForeignKey(Ujian, on_delete=models.CASCADE, related_name='soal')
@@ -57,3 +61,15 @@ class Soal(models.Model):
 
     def __str__(self):
         return self.pertanyaan[:50]  # Menampilkan 50 karakter pertama dari pertanyaan
+
+class HasilUjian(models.Model):
+    siswa = models.ForeignKey(User, on_delete=models.CASCADE)
+    ujian = models.ForeignKey(Ujian, on_delete=models.CASCADE)
+    nilai = models.FloatField()
+    tanggal_selesai = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('siswa', 'ujian')  # Satu siswa hanya bisa sekali mengerjakan ujian
+
+    def __str__(self):
+        return f"{self.siswa.username} - {self.ujian.nama_ujian} - {self.nilai}"

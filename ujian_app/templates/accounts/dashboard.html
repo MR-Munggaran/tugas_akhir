@@ -1,15 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-  {% include '_head.html' %}
-  <body>
-    {% include '_navbar.html' %}
-    <div class="container mt-5">
-      <div class="row">
-        <div class="col-md-12">
-          <h1>Dashboard</h1>
-          <p class="lead">Selamat datang, {{ request.user.username }}!</p>
-        </div>
-      </div>
+<!-- dashboard.html -->
+{% extends '_base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Dashboard</h1>
+        <p class="lead">Selamat datang, {{ request.user.username }}!</p>
     </div>
-  </body>
-</html>
+</div>
+{% endblock %}

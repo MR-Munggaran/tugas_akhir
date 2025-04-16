@@ -1,0 +1,18 @@
+<!-- confirm_ujian.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Konfirmasi Ujian</title>
+    <script>
+        // Tampilkan pop-up konfirmasi
+        if (confirm('Apakah Anda siap untuk mulai ujian?')) {
+            window.location.href = "{% url 'kerjakan_ujian' ujian.id %}";
+        } else {
+            window.location.href = "{% url 'akses_ujian' %}";
+        }
+    </script>
+</head>
+<body>
+    <p>Jika tidak ada pop-up, klik <a href="{% url 'kerjakan_ujian' ujian.id %}">di sini</a> untuk mulai.</p>
+</body>
+</html>

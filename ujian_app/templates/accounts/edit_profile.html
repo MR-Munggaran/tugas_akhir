@@ -1,0 +1,81 @@
+<!-- edit_profile.html -->
+{% extends '_base.html' %}
+
+{% block title %}Edit Profil{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="fas fa-user-edit me-2"></i>Edit Profil</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Bagian User Form -->
+                        <div class="mb-4">
+                            <h4 class="border-bottom pb-2">Informasi Akun</h4>
+                            <div class="form-group mb-3">
+                                <label class="form-label">{{ user_form.username.label }}</label>
+                                {{ user_form.username }}
+                                {% for error in user_form.username.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label class="form-label">{{ user_form.email.label }}</label>
+                                {{ user_form.email }}
+                                {% for error in user_form.email.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label class="form-label">{{ user_form.new_password.label }}</label>
+                                {{ user_form.new_password }}
+                                <small class="form-text text-muted">{{ user_form.new_password.help_text }}</small>
+                                {% for error in user_form.new_password.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label class="form-label">{{ user_form.confirm_password.label }}</label>
+                                {{ user_form.confirm_password }}
+                                {% for error in user_form.confirm_password.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Bagian Profile Form -->
+                        <div class="mb-4">
+                            <h4 class="border-bottom pb-2">Informasi Pribadi</h4>
+                            <div class="form-group mb-3">
+                                <label class="form-label">{{ profile_form.nama_lengkap.label }}</label>
+                                {{ profile_form.nama_lengkap }}
+                                {% for error in profile_form.nama_lengkap.errors %}
+                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>Simpan
+                            </button>
+                            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i>Batal
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

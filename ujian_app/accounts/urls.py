@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from . import views
 
 urlpatterns = [
@@ -6,12 +7,16 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('edit-profile/', views.edit_profile, name='edit_profile'),
 
-        # Student Management
+    # Student Management
     path('students/', views.student_list, name='student_list'),  # Pastikan ini ada
     path('students/create/', views.student_create, name='student_create'),
     path('students/update/<int:pk>/', views.student_update, name='student_update'),
     path('students/delete/<int:pk>/', views.student_delete, name='student_delete'),
+    path('upload-voice/<int:pk>/', views.upload_voice_model, name='upload_voice'),
+    path('voice-verification/', views.voice_verification, name='voice_verification'),
+    path('face-verification/', views.face_verification, name='face_verification'),
 
     # Kelas Management
     path('kelas/', views.kelas_list, name='kelas_list'),
@@ -27,6 +32,7 @@ urlpatterns = [
     path('ujian/create/', views.ujian_create, name='ujian_create'),
     path('ujian/update/<int:pk>/', views.ujian_update, name='ujian_update'),
     path('ujian/delete/<int:pk>/', views.ujian_delete, name='ujian_delete'),
+    path('proctoring-check/', views.proctoring_check, name='proctoring_check'),
 
     # Soal Management
     path('ujian/<int:ujian_id>/soal/', views.soal_list, name='soal_list'),

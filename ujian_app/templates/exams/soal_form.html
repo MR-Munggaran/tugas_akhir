@@ -1,94 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>
+{% extends '_base.html' %}
+
+{% block title %}{% if form.instance.pk %}Edit Soal{% else %}Tambah Soal{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">
     {% if form.instance.pk %}Edit Soal{% else %}Tambah Soal{% endif %}
-  </title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-</head>
-<body>
-  {% include '_navbar.html' %}
-  <div class="container mt-5">
-    <h1 class="mb-4">
-      {% if form.instance.pk %}Edit Soal{% else %}Tambah Soal{% endif %}
-    </h1>
-    <form method="post" novalidate>
-      {% csrf_token %}
-      
-      <!-- Pertanyaan -->
-      <div class="mb-3">
-        <label for="id_pertanyaan" class="form-label">Pertanyaan</label>
-        {{ form.pertanyaan }}
-        {% if form.pertanyaan.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.pertanyaan.errors }}
-          </div>
-        {% endif %}
-      </div>
+  </h1>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    
+    <!-- Pertanyaan -->
+    <div class="mb-3">
+      <label for="id_pertanyaan" class="form-label">Pertanyaan</label>
+      {{ form.pertanyaan }}
+      {% if form.pertanyaan.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.pertanyaan.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Pilihan A -->
-      <div class="mb-3">
-        <label for="id_pilihan_a" class="form-label">Pilihan A</label>
-        {{ form.pilihan_a }}
-        {% if form.pilihan_a.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.pilihan_a.errors }}
-          </div>
-        {% endif %}
-      </div>
+    <!-- Pilihan A -->
+    <div class="mb-3">
+      <label for="id_pilihan_a" class="form-label">Pilihan A</label>
+      {{ form.pilihan_a }}
+      {% if form.pilihan_a.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.pilihan_a.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Pilihan B -->
-      <div class="mb-3">
-        <label for="id_pilihan_b" class="form-label">Pilihan B</label>
-        {{ form.pilihan_b }}
-        {% if form.pilihan_b.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.pilihan_b.errors }}
-          </div>
-        {% endif %}
-      </div>
+    <!-- Pilihan B -->
+    <div class="mb-3">
+      <label for="id_pilihan_b" class="form-label">Pilihan B</label>
+      {{ form.pilihan_b }}
+      {% if form.pilihan_b.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.pilihan_b.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Pilihan C -->
-      <div class="mb-3">
-        <label for="id_pilihan_c" class="form-label">Pilihan C</label>
-        {{ form.pilihan_c }}
-        {% if form.pilihan_c.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.pilihan_c.errors }}
-          </div>
-        {% endif %}
-      </div>
+    <!-- Pilihan C -->
+    <div class="mb-3">
+      <label for="id_pilihan_c" class="form-label">Pilihan C</label>
+      {{ form.pilihan_c }}
+      {% if form.pilihan_c.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.pilihan_c.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Pilihan D -->
-      <div class="mb-3">
-        <label for="id_pilihan_d" class="form-label">Pilihan D</label>
-        {{ form.pilihan_d }}
-        {% if form.pilihan_d.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.pilihan_d.errors }}
-          </div>
-        {% endif %}
-      </div>
+    <!-- Pilihan D -->
+    <div class="mb-3">
+      <label for="id_pilihan_d" class="form-label">Pilihan D</label>
+      {{ form.pilihan_d }}
+      {% if form.pilihan_d.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.pilihan_d.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Jawaban Benar -->
-      <div class="mb-3">
-        <label for="id_jawaban_benar" class="form-label">Jawaban Benar</label>
-        {{ form.jawaban_benar }}
-        {% if form.jawaban_benar.errors %}
-          <div class="invalid-feedback d-block">
-            {{ form.jawaban_benar.errors }}
-          </div>
-        {% endif %}
-      </div>
+    <!-- Jawaban Benar -->
+    <div class="mb-3">
+      <label for="id_jawaban_benar" class="form-label">Jawaban Benar</label>
+      {{ form.jawaban_benar }}
+      {% if form.jawaban_benar.errors %}
+        <div class="invalid-feedback d-block">
+          {{ form.jawaban_benar.errors }}
+        </div>
+      {% endif %}
+    </div>
 
-      <!-- Aksi -->
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Simpan</button>
-        <a href="{% url 'soal_list' ujian.id %}" class="btn btn-secondary">Kembali</a>
-      </div>
-    </form>
-  </div>
-</body>
-</html>
+    <!-- Aksi -->
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <a href="{% url 'soal_list' ujian.id %}" class="btn btn-secondary">Kembali</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

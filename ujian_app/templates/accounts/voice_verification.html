@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rekam Suara</title>
+    <script src="https://cdn.jsdelivr.net/npm/recordrtc@5.4.6/RecordRTC.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2>Verifikasi Suara</h2>
+        <p>Sisa percobaan: <span id="remaining">{{ remaining }}</span></p>
+        <p><b>Saya sedang melakukan tes pengenalan suara untuk aplikasi ujian</b></p>
+        
+        <!-- Tampilkan pesan error jika ada -->
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <!-- Tombol rekam dan stop -->
+        <button id="recordButton" class="btn btn-primary">Mulai Rekam</button>
+        <button id="stopButton" class="btn btn-danger" disabled>Stop</button>
+
+        <!-- Form untuk submit audio -->
+        <form id="audioForm" method="post" enctype="multipart/form-data" style="display: none;">
+            {% csrf_token %}
+            <input type="file" id="audioInput" name="audio" accept="audio/*" capture>
+        </form>
+    </div>
+
+    <script>
+        let recorder; 
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const audioInput = document.getElementById('audioInput');
+
+        // Mulai rekaman
+        recordButton.onclick = async () => {
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new RecordRTC(stream, {
+                type: 'audio',
+                mimeType: 'audio/webm',
+                recorderType: RecordRTC.StereoAudioRecorder,
+                desiredSampRate: 16000 // Sesuaikan dengan sample rate training
+            });
+            recorder.startRecording();
+        };
+
+        // Stop rekaman dan submit
+        stopButton.onclick = () => {
+            recorder.stopRecording(() => {
+                const blob = recorder.getBlob();
+                const file = new File([blob], "recording.webm", { type: "audio/webm" });
+                
+                // Isi input file dengan blob
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                audioInput.files = dataTransfer.files;
+
+                // Submit form
+                document.getElementById('audioForm').submit();
+            });
+            recordButton.disabled = false;
+            stopButton.disabled = true;
+        };
+    </script>
+</body>
+</html>

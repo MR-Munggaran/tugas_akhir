@@ -33,6 +33,16 @@ AUTH_USER_MODEL = 'accounts.User'
 
 # Application definition
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'accounts.backends.VoiceAuthBackend',  # Tambahkan ini
+    'accounts.backends.FaceAuthBackend',
+]
+
+YOLO_FACE_MODEL = os.path.join(BASE_DIR, 'face_models', 'best.pt')
+YOLO_FACE_RECOGNITION_MODEL = os.path.join(BASE_DIR, 'face_models', 'yolov8s.pt')
+FACE_THRESHOLD = 0.25 # Threshold verifikasi wajah
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -125,7 +135,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

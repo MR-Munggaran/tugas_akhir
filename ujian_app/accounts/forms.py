@@ -18,17 +18,25 @@ class GuruRegistrationForm(UserCreationForm):
             Guru.objects.create(user=user, nama_lengkap=self.cleaned_data['nama_lengkap'])
         return user
 
+class VoiceModelForm(forms.ModelForm):
+    class Meta:
+        model = Siswa
+        fields = ['voice_model']
+        widgets = {
+            'voice_model': forms.FileInput(attrs={'accept': '.joblib'})
+        }
+
 class SiswaForm(forms.ModelForm):
     class Meta:
         model = Siswa
         fields = ['nama_lengkap', 'kelas']
 
 class SiswaCreationForm(UserCreationForm):
-    nama_lengkap = forms.CharField(
+    nama_lengkap = forms.CharField(  # Pindahkan ke sini
         max_length=100,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Masukkan nama lengkap'})
     )
-    kelas = forms.ModelChoiceField(
+    kelas = forms.ModelChoiceField(  # Pindahkan ke sini
         queryset=Kelas.objects.all(),
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'})
@@ -36,7 +44,7 @@ class SiswaCreationForm(UserCreationForm):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password1', 'password2', 'nama_lengkap', 'kelas')
+        fields = ('username', 'email', 'password1', 'password2')  # Hapus nama_lengkap dan kelas
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -123,3 +131,55 @@ class SoalForm(forms.ModelForm):
                 'class': 'form-select'
             }),
         }
+
+class UserEditForm(forms.ModelForm):
+    new_password = forms.CharField(
+        label="Password Baru",
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password', 'class': 'form-control',}),
+        required=False,
+        help_text="Kosongkan jika tidak ingin mengganti password"
+    )
+    confirm_password = forms.CharField(
+        label="Konfirmasi Password",
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password', 'class': 'form-control',}),
+        required=False
+    )
+
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+        required = False
+        labels = {
+            'username': 'Username',
+            'email': 'Email'
+        }
+        widgets = {
+            'username': forms.TextInput(attrs={'placeholder': 'Username Anda', 'class': 'form-control',}),
+            'email': forms.EmailInput(attrs={'placeholder': 'Alamat email Anda', 'class': 'form-control',})
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        new_password = cleaned_data.get("new_password")
+        confirm_password = cleaned_data.get("confirm_password")
+
+        if new_password or confirm_password:
+            if new_password != confirm_password:
+                self.add_error('confirm_password', "Password tidak cocok")
+        return cleaned_data
+
+class ProfileEditForm(forms.ModelForm):
+    class Meta:
+        fields = ['nama_lengkap']
+        labels = {'nama_lengkap': 'Nama Lengkap'}
+        widgets = {
+            'nama_lengkap': forms.TextInput(attrs={'placeholder': 'Nama lengkap Anda', 'class': 'form-control',})
+        }
+
+class GuruProfileForm(ProfileEditForm):
+    class Meta(ProfileEditForm.Meta):
+        model = Guru
+
+class SiswaProfileForm(ProfileEditForm):
+    class Meta(ProfileEditForm.Meta):
+        model = Siswa

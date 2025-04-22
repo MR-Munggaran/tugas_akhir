@@ -1,11 +1,38 @@
+
+{% extends '_base.html' %}
+
+{% block title %}Belum Mulai{% endblock %}
+
+{% block content %}
 <div class="container mt-5">
-    <div class="alert alert-warning" role="alert">
-        <h4 class="alert-heading">Ujian Belum Dimulai!</h4>
-        <p>Waktu Sekarang: {{ now }}</p>
-        <p>Waktu Mulai Ujian: {{ ujian.waktu_mulai }}</p>
-        <p>Waktu Selesai Ujian: {{ ujian.waktu_selesai }}</p>
-        <p>Ujian "{{ ujian.nama }}" akan dimulai pada:</p>
-        <p class="mb-0"><strong>{{ ujian.waktu_mulai|date:"d F Y H:i" }}</strong></p>
+    <div class="card shadow">
+        <div class="card-header bg-warning text-white">
+            <h5 class="card-title mb-0">Ujian Belum Dimulai!</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <p class="mb-1"><small>Waktu Sekarang</small></p>
+                    <p class="mb-1 text-muted">{{ now }}</p>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1"><small>Waktu Mulai Ujian</small></p>
+                    <p class="mb-1">{{ ujian.waktu_mulai|date:"d F Y H:i" }}</p>
+                </div>
+                <div class="col-md-4">
+                    <p class="mb-1"><small>Waktu Selesai Ujian</small></p>
+                    <p class="mb-1">{{ ujian.waktu_selesai|date:"d F Y H:i" }}</p>
+                </div>
+            </div>
+            <hr>
+            <p class="mb-0">
+                Ujian "<strong>{{ ujian.nama_ujian }}</strong>" akan dimulai pada: <br>
+                <span class="h5">{{ ujian.waktu_mulai|date:"d F Y H:i" }}</span>
+            </p>
+        </div>
+        <div class="card-footer">
+            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-block">Kembali ke Daftar Ujian</a>
+        </div>
     </div>
-    <a href="{% url 'dashboard' %}" class="btn btn-primary">Kembali ke Daftar Ujian</a>
 </div>
+{% endblock %}

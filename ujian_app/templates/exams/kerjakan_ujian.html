@@ -1,107 +1,309 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Akses Ujian</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    {% include '_navbar.html' %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
     <div class="container mt-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>{{ ujian.nama_ujian }}</h1>
-            <div class="timer-container">
-                <div class="timer bg-danger text-white p-2 rounded">
-                    <span id="timer">00:00:00</span>
+            <div class="d-flex align-items-center gap-3">
+                <!-- Pindahkan kamera ke sini -->
+                <div class="webcam-container">
+                    <video id="webcam" autoplay playsinline style="width: 200px; border: 2px solid #dc3545; border-radius: 8px;"></video>
+                    <div id="proctoring-status" class="mt-1 text-center small text-danger"></div>
+                </div>
+                <canvas id="proctorCanvas" style="display:none;"></canvas>
+                
+                <div class="timer-container">
+                    <div class="timer bg-danger text-white p-2 rounded">
+                        <span id="timer">00:00:00</span>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <form id="ujianForm" method="post">
-            {% csrf_token %}
-            {% for soal in soal_list %}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">Soal {{ forloop.counter }}</h5>
-                    <p class="card-text">{{ soal.pertanyaan }}</p>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_a" value="A" required>
-                        <label class="form-check-label" for="soal_{{ soal.id }}_a">{{ soal.pilihan_a }}</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_b" value="B">
-                        <label class="form-check-label" for="soal_{{ soal.id }}_b">{{ soal.pilihan_b }}</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_c" value="C">
-                        <label class="form-check-label" for="soal_{{ soal.id }}_c">{{ soal.pilihan_c }}</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_d" value="D">
-                        <label class="form-check-label" for="soal_{{ soal.id }}_d">{{ soal.pilihan_d }}</label>
-                    </div>
+    </div>
+    
+    <div id="ujian-container" 
+        data-ujian-id="{{ ujian.id }}" 
+        data-total-soal="{{ soal_list|length }}"
+        data-waktu-habis="{{ waktu_habis|escapejs }}">
+    </div>
+    
+    <div class="row">
+        <!-- Navigasi Soal -->
+        <div class="col-md-3 mb-4">
+            <div class="sticky-top pt-3">
+                <div class="list-group">
+                    {% for soal in soal_list %}
+                    <a href="#soal{{ forloop.counter }}" 
+                       class="list-group-item list-group-item-action {% if forloop.first %}active{% endif %}"
+                       onclick="handleSoalClick(event, '{{ forloop.counter }}')">
+                       Soal {{ forloop.counter }}
+                    </a>
+                    {% endfor %}
                 </div>
             </div>
-            {% endfor %}
-            <button type="submit" class="btn btn-primary">Submit Jawaban</button>
-        </form>
+        </div>
+    
+        <!-- Konten Soal -->
+        <div class="col-md-9">
+            <form id="ujianForm" method="post">
+                {% csrf_token %}
+                {% for soal in soal_list %}
+                <div id="soal{{ forloop.counter }}" class="card mb-3 soal-container">
+                    <div class="card-body">
+                        <h5 class="card-title">Soal {{ forloop.counter }}</h5>
+                        <p class="card-text">{{ soal.pertanyaan }}</p>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_a" value="A" required>
+                            <label class="form-check-label" for="soal_{{ soal.id }}_a">{{ soal.pilihan_a }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_b" value="B">
+                            <label class="form-check-label" for="soal_{{ soal.id }}_b">{{ soal.pilihan_b }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_c" value="C">
+                            <label class="form-check-label" for="soal_{{ soal.id }}_c">{{ soal.pilihan_c }}</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="soal_{{ soal.id }}" id="soal_{{ soal.id }}_d" value="D">
+                            <label class="form-check-label" for="soal_{{ soal.id }}_d">{{ soal.pilihan_d }}</label>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <span class="d-flex">
+                    <button type="submit" class="btn btn-primary me-2" onclick="return confirmSubmit()">Submit Jawaban</button>
+                    <button type="button" class="btn btn-secondary next-btn" onclick="nextSoal()">Next</button>
+                </span>
+            </form>
+        </div>
     </div>
-    
+
     <script>
-    // Timer countdown
-    const waktuHabis = new Date('{{ waktu_habis|escapejs }}');
-    let timerInterval;
-    
-    function updateTimer() {
-        const now = new Date();
-        const diff = waktuHabis - now;
+        // Variabel navigasi
+        let currentSoal = 1;
+        const totalSoal = {{ soal_list|length }};
         
-        if (diff <= 0) {
-            clearInterval(timerInterval);
-            document.getElementById('timer').textContent = "Waktu Habis!";
-            document.getElementById('ujianForm').submit();
+        // Konfirmasi sebelum submit
+        function confirmSubmit() {
+            return confirm('Apakah Anda yakin sudah menyelesaikan semua soal?');
+        }
+
+        // Fungsi navigasi Next
+        function nextSoal() {
+            if (currentSoal < totalSoal) {
+                showSoal(currentSoal + 1);
+            }
+        }
+
+        // Inisialisasi tampilan
+        document.addEventListener('DOMContentLoaded', () => {
+            // Sembunyikan semua soal kecuali pertama
+            document.querySelectorAll('.soal-container').forEach((soal, index) => {
+                if (index !== 0) soal.style.display = 'none';
+            });
+
+            // Atur tampilan tombol Next awal
+            document.querySelectorAll('.next-btn').forEach((btn, index) => {
+                btn.style.display = (index === 0 && totalSoal > 1) ? 'block' : 'none';
+            });
+
+            // Handle hash URL
+            const currentHash = window.location.hash;
+            if (currentHash.startsWith('#soal')) {
+                const noSoal = parseInt(currentHash.replace('#soal', ''));
+                showSoal(noSoal);
+            } else {
+                showSoal(1);
+            }
+        });
+
+        // Fungsi navigasi utama
+        function handleSoalClick(event, no) {
+            event.preventDefault();
+            showSoal(parseInt(no));
+        }
+
+        function showSoal(no) {
+            // Validasi nomor soal
+            if (no < 1 || no > totalSoal) return;
+
+            // Update currentSoal
+            currentSoal = no;
+
+            // Sembunyikan semua soal
+            document.querySelectorAll('.soal-container').forEach(soal => {
+                soal.style.display = 'none';
+            });
+
+            // Tampilkan soal target
+            const targetSoal = document.getElementById(`soal${no}`);
+            if (targetSoal) {
+                targetSoal.style.display = 'block';
+                
+                // Update navigasi samping
+                document.querySelectorAll('.list-group-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                document.querySelector(`a[href="#soal${no}"]`).classList.add('active');
+                
+                // Update URL hash
+                history.replaceState(null, null, `#soal${no}`);
+            }
+
+            // Update tombol Next
+            document.querySelectorAll('.next-btn').forEach(btn => {
+                btn.style.display = (no < totalSoal) ? 'block' : 'none';
+            });
+        }
+
+        // Timer countdown
+        const waktuHabis = new Date('{{ waktu_habis|escapejs }}');
+        let timerInterval;
+        
+        function updateTimer() {
+            const now = new Date();
+            const diff = waktuHabis - now;
+            
+            if (diff <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('timer').textContent = "Waktu Habis!";
+                document.getElementById('ujianForm').submit();
+                return;
+            }
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            document.getElementById('timer').textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            if (hours === 0 && minutes < 5) {
+                document.querySelector('.timer').classList.replace('bg-danger', 'bg-warning');
+            }
+        }
+        
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer(); 
+        
+        // Prevent page leave
+        window.addEventListener('beforeunload', (e) => {
+            if (document.getElementById('timer').textContent !== "Waktu Habis!") {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+
+    <script>
+        // Variabel kontrol proctoring
+        let proctorInterval;
+
+        // Fungsi capture dan kirim gambar
+        async function captureAndVerify() {
+            const video = document.getElementById('webcam');
+            const canvas = document.getElementById('proctorCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('image', blob, 'proctor.jpg');
+                
+                try {
+                    const response = await fetch("{% url 'proctoring_check' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    const statusDiv = document.getElementById('proctoring-status');
+                    
+                    if (result.verified) {
+                        statusDiv.textContent = 'Verified';
+                        statusDiv.className = 'text-success';
+                    } else {
+                        statusDiv.textContent = 'Face Mismatch!';
+                        statusDiv.className = 'text-danger';
+                        // Trigger peringatan atau tindakan lain
+                    }
+                } catch (error) {
+                    console.error('Proctoring error:', error);
+                    document.getElementById('proctoring-status').textContent = 'Error';
+                }
+            }, 'image/jpeg');
+        }
+
+        // Inisialisasi proctoring
+        document.addEventListener('DOMContentLoaded', async () => {
+        // 1. Inisialisasi webcam
+        const video = document.getElementById('webcam');
+        
+        try {
+            // Minta akses ke webcam
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: "user" // Kamera depan
+                }
+            });
+            
+            // Tampilkan video stream
+            video.srcObject = stream;
+            await new Promise(resolve => video.onloadedmetadata = resolve);
+            video.play();
+            
+        } catch (err) {
+            console.error('Error accessing webcam:', err);
+            alert('Akses webcam gagal! Pastikan kamera tersedia dan izin diberikan.');
+            // Nonaktifkan fitur proctoring atau alihkan ke error page
             return;
         }
+
+        // 2. Inisialisasi canvas untuk capture
+        const canvas = document.getElementById('proctorCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        
-        document.getElementById('timer').textContent = 
-            `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        
-        // Ubah warna saat waktu hampir habis
-        if (hours === 0 && minutes < 5) {
-            document.querySelector('.timer').classList.add('bg-warning');
-            document.querySelector('.timer').classList.remove('bg-danger');
-        }
-    }
-    
-    // Start timer
-    timerInterval = setInterval(updateTimer, 1000);
-    updateTimer(); // Initial call
-    
-    // Handle page refresh
-    window.addEventListener('beforeunload', function(e) {
-        if (document.getElementById('timer').textContent !== "Waktu Habis!") {
-            e.preventDefault();
-            e.returnValue = 'Anda sedang mengerjakan ujian. Yakin ingin meninggalkan halaman?';
-        }
+        // 3. Mulai interval proctoring
+        proctorInterval = setInterval(captureAndVerify, 15000);
     });
     </script>
-    
+
     <style>
-    .timer {
-        font-size: 1.2rem;
-        font-weight: bold;
-        min-width: 120px;
-        text-align: center;
-    }
+        .timer {
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: center;
+        }
+        .soal-container {
+            transition: opacity 0.3s ease;
+        }
+        .list-group-item.active {
+            background-color: #0d6efd !important;
+            border-color: #0d6efd !important;
+        }
+        .webcam-container {
+        position: relative;
+        }
+        #webcam {
+            transform: scaleX(-1); /* Mirror effect */
+        }
     </style>
-    </div>
-  </body>
+</body>
 </html>

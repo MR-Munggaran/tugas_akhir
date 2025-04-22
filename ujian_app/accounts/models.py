@@ -1,3 +1,4 @@
+from django.utils import timezone
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
@@ -14,6 +15,7 @@ class Siswa(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     nama_lengkap = models.CharField(max_length=100)
     kelas = models.ForeignKey('Kelas', on_delete=models.SET_NULL, null=True, blank=True)
+    voice_model = models.FileField(upload_to='voice_models/', null=True, blank=True)  # Tambahkan field ini
 
     def __str__(self):
         return self.nama_lengkap
@@ -73,3 +75,24 @@ class HasilUjian(models.Model):
 
     def __str__(self):
         return f"{self.siswa.username} - {self.ujian.nama_ujian} - {self.nilai}"
+    
+class JawabanSiswa(models.Model):
+    siswa = models.ForeignKey(User, on_delete=models.CASCADE)
+    soal = models.ForeignKey(Soal, on_delete=models.CASCADE)
+    jawaban = models.CharField(max_length=1)
+    waktu_jawab = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('siswa', 'soal')  # Satu jawaban per soal per siswa
+
+class ProctoringLog(models.Model):
+    EVENT_CHOICES = [
+        ('MATCH', 'Match'),
+        ('MISS_MATCH', 'Miss Match'),
+        ('ERROR', 'Error'),
+    ]
+    ujian = models.ForeignKey(Ujian, on_delete=models.CASCADE)
+    siswa = models.ForeignKey(User, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    event_type = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    description = models.TextField()

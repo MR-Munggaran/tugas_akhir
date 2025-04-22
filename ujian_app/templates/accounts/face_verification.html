@@ -1,0 +1,137 @@
+<!-- accounts/face_verification.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verifikasi Wajah</title>
+    <style>
+        #camera-container {
+            position: relative;
+            width: 640px;
+            margin: 0 auto;
+        }
+        #webcam, #preview {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+        }
+        #preview-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2>Verifikasi Wajah</h2>
+        <p>Sisa percobaan: <span id="remaining">{{ remaining }}</span></p>
+        
+        <!-- Tampilkan pesan error jika ada -->
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <!-- Form untuk submit gambar -->
+        <form id="imageForm" method="post" enctype="multipart/form-data" style="display: none;">
+            {% csrf_token %}
+            <input type="file" id="imageInput" name="image" accept="image/*" capture>
+        </form>
+
+        <!-- Container untuk kamera dan preview -->
+        <div id="camera-container">
+            <!-- Kamera -->
+            <video id="webcam" autoplay playsinline></video>
+            
+            <!-- Preview gambar -->
+            <div id="preview-container">
+                <img id="preview" src="#" alt="Preview">
+            </div>
+            
+            <!-- Tombol aksi -->
+            <div>
+                <button type="button" onclick="captureImage()" id="capture-btn">Ambil Gambar</button>
+                <button type="button" onclick="confirmImage()" id="confirm-btn" style="display:none;">Konfirmasi</button>
+                <button type="button" onclick="retakeImage()" id="retake-btn" style="display:none;">Ulangi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let mediaStream;
+        let capturedImage = null;
+
+        // Inisialisasi kamera
+        async function startCamera() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('webcam').srcObject = mediaStream;
+            } catch (error) {
+                alert('Akses kamera diperlukan!');
+                console.error('Camera error:', error);
+            }
+        }
+
+        // Capture gambar
+        async function captureImage() {
+            const video = document.getElementById('webcam');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Konversi ke data URL untuk preview
+            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('preview').src = dataURL;
+            
+            // Simpan blob untuk submit
+            canvas.toBlob(blob => {
+                capturedImage = new File([blob], "capture.jpg", { type: "image/jpeg" });
+            }, 'image/jpeg', 0.8);
+
+            // Tampilkan preview dan sembunyikan kamera
+            document.getElementById('webcam').style.display = 'none';
+            document.getElementById('preview-container').style.display = 'block';
+            document.getElementById('capture-btn').style.display = 'none';
+            document.getElementById('confirm-btn').style.display = 'inline-block';
+            document.getElementById('retake-btn').style.display = 'inline-block';
+        }
+
+        // Konfirmasi gambar
+        function confirmImage() {
+            if (!capturedImage) return;
+
+            // Isi input file dengan gambar yang sudah ditangkap
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(capturedImage);
+            document.getElementById('imageInput').files = dataTransfer.files;
+
+            // Submit form
+            document.getElementById('imageForm').submit();
+        }
+
+        // Ulangi pengambilan gambar
+        function retakeImage() {
+            // Hentikan streaming kamera sebelumnya
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Reset tampilan
+            document.getElementById('webcam').style.display = 'block';
+            document.getElementById('preview-container').style.display = 'none';
+            document.getElementById('capture-btn').style.display = 'inline-block';
+            document.getElementById('confirm-btn').style.display = 'none';
+            document.getElementById('retake-btn').style.display = 'none';
+            
+            // Restart kamera
+            startCamera();
+        }
+
+        // Start kamera saat halaman load
+        startCamera();
+    </script>
+</body>
+</html>

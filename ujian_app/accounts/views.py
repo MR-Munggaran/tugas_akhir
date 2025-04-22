@@ -1,12 +1,22 @@
+import io
+from django.http import HttpResponseForbidden, JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
-from django.utils.timezone import make_aware
-import pytz
+from django.contrib.auth import update_session_auth_hash
+import joblib
+import librosa
+import numpy as np
+from ultralytics import YOLO
+from django.conf import settings
+from PIL import Image
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from .forms import GuruRegistrationForm, SiswaCreationForm, SiswaForm, KelasForm, UjianForm, SoalForm
-from .models import Siswa, Kelas, LogMasukStudent, User, Ujian, Soal, HasilUjian
+from .forms import GuruProfileForm, GuruRegistrationForm, SiswaCreationForm, SiswaForm, KelasForm, SiswaProfileForm, UjianForm, SoalForm, UserEditForm, VoiceModelForm
+from .models import JawabanSiswa, ProctoringLog, Siswa, Kelas, LogMasukStudent, User, Ujian, Soal, HasilUjian
+
 
 # Cek apakah user adalah guru atau admin
 def is_guru_or_admin(user):
@@ -29,12 +39,177 @@ def login_view(request):
         username = request.POST['username']
         password = request.POST['password']
         user = authenticate(request, username=username, password=password)
+        
         if user is not None:
+            # Jika user adalah siswa DAN memiliki model suara
+            if user.is_siswa and hasattr(user, 'siswa') and user.siswa.voice_model:
+                request.session['pre_verified_user'] = user.id
+                request.session['voice_attempts'] = 0
+                return redirect('voice_verification')
+            else:
+                # Login langsung untuk guru/admin atau siswa tanpa model suara
+                login(request, user)
+                return redirect('dashboard')
+        else:
+            return render(request, 'accounts/login.html', {'error': 'Autentikasi gagal'})
+    return render(request, 'accounts/login.html')
+
+def voice_verification(request):
+    user_id = request.session.get('pre_verified_user')
+    if not user_id:
+        return redirect('login')
+    
+    user = User.objects.get(id=user_id)
+    if not user.is_siswa:
+        return redirect('login')
+    
+    siswa = user.siswa
+    if not siswa.voice_model:
+        login(request, user)
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        audio = request.FILES.get('audio')
+        attempts = request.session.get('voice_attempts', 0)
+        
+        verified = verify_voice(siswa, audio)
+        
+        if verified:
+            # Langsung ke verifikasi wajah tanpa cek model
+            request.session['voice_verified'] = True
+            return redirect('face_verification')
+            
+        else:
+            attempts += 1
+            request.session['voice_attempts'] = attempts
+            
+            if attempts >= 3:
+                request.session.pop('pre_verified_user', None)
+                request.session.pop('voice_attempts', None)
+                return redirect('login')
+            
+            return render(request, 'accounts/voice_verification.html', {
+                'error': f'Verifikasi gagal ({attempts}/3)',
+                'remaining': 3 - attempts
+            })
+    
+    return render(request, 'accounts/voice_verification.html', {
+        'remaining': 3 - request.session.get('voice_attempts', 0)
+    })
+
+def verify_voice(siswa, audio_file):
+    try:
+        # Load model GMM
+        gmm = joblib.load(siswa.voice_model.path)
+        
+        # Load audio dengan parameter yang sama seperti training
+        y, sr = librosa.load(audio_file, sr=16000)  # Pastikan sample rate 16kHz
+        
+        # Potong/pad ke 3 detik (sesuaikan dengan durasi training)
+        max_duration = 3.0
+        y = librosa.util.fix_length(y, size=int(sr * max_duration))
+        
+        # Ekstrak fitur MFCC + delta + delta-delta
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        delta_mfcc = librosa.feature.delta(mfcc)
+        delta2_mfcc = librosa.feature.delta(mfcc, order=2)
+        features = np.vstack([mfcc, delta_mfcc, delta2_mfcc]).T  # (n_frames, 39)
+        
+        # Hitung rata-rata log likelihood per frame
+        log_likelihood = gmm.score(features)
+        avg_likelihood = log_likelihood / features.shape[0]
+        
+        # Threshold disesuaikan dengan hasil training
+        return avg_likelihood > -50.0  # Sesuaikan nilai threshold
+
+    except Exception as e:
+        print(f"Verification error: {str(e)}")
+        return False
+    
+# Load model once at startup
+yolo_model = YOLO(settings.YOLO_FACE_MODEL)
+
+def verify_face(user, image_file):
+    try:
+        # Validasi gambar
+        img = Image.open(image_file)
+        img.verify()
+        image_file.seek(0)  # Reset pointer
+        
+        # Konversi ke RGB dan kembalikan sebagai PIL Image
+        img = Image.open(image_file).convert('RGB')
+        
+        # Prediksi menggunakan YOLOv8 dengan PIL Image
+        results = yolo_model.predict(source=img)  # Langsung kirim PIL Image
+        
+        # Proses hasil prediksi
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                class_idx = int(box.cls.item())
+                detected_name = yolo_model.names[class_idx].lower()
+                confidence = box.conf.item()
+                
+                if (detected_name == user.username.lower() and 
+                    confidence > getattr(settings, 'FACE_THRESHOLD', 0.7)):
+                    return True
+        return False
+
+    except Exception as e:
+        print(f"[ERROR] Face verification failed: {str(e)}")
+        return False
+
+def face_verification(request):
+    user_id = request.session.get('pre_verified_user')
+    voice_verified = request.session.get('voice_verified', False)
+    
+    if not user_id or not voice_verified:
+        return redirect('login')
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect('login')
+
+    if request.method == 'POST':
+        image = request.FILES.get('image')
+        attempts = request.session.get('face_attempts', 0)
+        
+        # Verifikasi menggunakan user langsung
+        verified = verify_face(user, image)
+
+        if verified:
+            # Login user
+            user.backend = 'accounts.backends.FaceAuthBackend'
             login(request, user)
+            
+            # Bersihkan session
+            for key in ['pre_verified_user', 'voice_verified', 
+                       'voice_attempts', 'face_attempts']:
+                if key in request.session:
+                    del request.session[key]
+            
             return redirect('dashboard')
         else:
-            return render(request, 'accounts/login.html', {'error': 'Username atau password salah'})
-    return render(request, 'accounts/login.html')
+            attempts += 1
+            request.session['face_attempts'] = attempts
+            
+            if attempts >= 3:
+                # Bersihkan semua session
+                for key in ['pre_verified_user', 'voice_verified', 
+                           'voice_attempts', 'face_attempts']:
+                    if key in request.session:
+                        del request.session[key]
+                return redirect('login')
+            
+            return render(request, 'accounts/face_verification.html', {
+                'error': f'Verifikasi gagal ({attempts}/3)',
+                'remaining': 3 - attempts
+            })
+    
+    return render(request, 'accounts/face_verification.html', {
+        'remaining': 3 - request.session.get('face_attempts', 0)
+    })
 
 # Logout
 @login_required
@@ -45,7 +220,56 @@ def logout_view(request):
 # Dashboard
 @login_required
 def dashboard(request):
-    return render(request, 'accounts/dashboard.html')
+    context = {}
+    
+    if request.user.is_guru:
+        context['jumlah_siswa'] = Siswa.objects.count()
+        context['jumlah_ujian'] = Ujian.objects.filter(guru=request.user).count()
+        context['nama_guru'] = request.user.guru.nama_lengkap
+    
+    elif request.user.is_siswa:
+        try:
+            siswa = request.user.siswa
+            context['siswa'] = siswa
+            hasil_ujian = HasilUjian.objects.filter(siswa=request.user).order_by('-tanggal_selesai')
+            
+            context['jumlah_ujian_diikuti'] = hasil_ujian.count()
+            context['nilai_terakhir'] = hasil_ujian.first() if hasil_ujian.exists() else None
+            
+        except Siswa.DoesNotExist:
+            pass
+    
+    return render(request, 'accounts/dashboard.html', context)
+
+@login_required
+def edit_profile(request):
+    user = request.user
+    profile_instance = user.guru if user.is_guru else user.siswa if user.is_siswa else None
+    
+    if request.method == 'POST':
+        user_form = UserEditForm(request.POST, instance=user)
+        profile_form = (GuruProfileForm(request.POST, instance=profile_instance) if user.is_guru 
+                      else SiswaProfileForm(request.POST, instance=profile_instance))
+        
+        if user_form.is_valid() and profile_form.is_valid():
+            # Update password jika diisi
+            new_password = user_form.cleaned_data.get('new_password')
+            if new_password:
+                user.set_password(new_password)
+                update_session_auth_hash(request, user)
+            
+            user_form.save()
+            profile_form.save()
+            return redirect('dashboard')
+    else:
+        user_form = UserEditForm(instance=user)
+        profile_form = (GuruProfileForm(instance=profile_instance) if user.is_guru 
+                      else SiswaProfileForm(instance=profile_instance))
+
+    return render(request, 'accounts/edit_profile.html', {
+        'user_form': user_form,
+        'profile_form': profile_form
+    })
 
 # Student List
 @login_required
@@ -93,6 +317,26 @@ def student_delete(request, pk):
         student.delete()
         return redirect('student_list')
     return render(request, 'students/student_confirm_delete.html', {'student': student})
+
+def upload_voice_model(request, pk):
+    siswa = get_object_or_404(Siswa, pk=pk)
+    
+    # Hanya guru atau admin yang bisa mengupload
+    if not request.user.is_guru and not request.user.is_superuser:
+        return HttpResponseForbidden("Anda tidak memiliki akses")
+    
+    if request.method == 'POST':
+        form = VoiceModelForm(request.POST, request.FILES, instance=siswa)
+        if form.is_valid():
+            form.save()
+            return redirect('student_list')
+    else:
+        form = VoiceModelForm(instance=siswa)
+    
+    return render(request, 'students/upload_voice.html', {
+        'form': form,
+        'siswa': siswa
+    })
 
 # Kelas List
 @login_required
@@ -253,7 +497,6 @@ def akses_ujian(request):
             return render(request, 'exams/akses_ujian.html', {'error': error})
     return render(request, 'exams/akses_ujian.html')
 
-
 @login_required
 def kerjakan_ujian(request, ujian_id):
     ujian = get_object_or_404(Ujian, pk=ujian_id)
@@ -294,8 +537,15 @@ def kerjakan_ujian(request, ujian_id):
         benar = 0
         for soal in soal_list:
             jawaban = request.POST.get(f'soal_{soal.id}')
-            if jawaban == soal.jawaban_benar:
-                benar += 1
+            if jawaban:
+                # Simpan jawaban ke model JawabanSiswa
+                JawabanSiswa.objects.update_or_create(
+                    siswa=request.user,
+                    soal=soal,
+                    defaults={'jawaban': jawaban}
+                )
+                if jawaban == soal.jawaban_benar:
+                    benar += 1
         
         nilai = (benar / soal_list.count()) * 100 if soal_list.count() > 0 else 0
         
@@ -348,4 +598,69 @@ def nilai_detail(request, ujian_id):
     return render(request, 'grades/nilai_detail.html', {
         'ujian': ujian,
         'hasil': hasil
+    })
+
+def verify_face_proctoring(user, image_file):
+    try:
+        # Buka gambar dan konversi ke format yang kompatibel
+        img = Image.open(image_file).convert("RGB")
+        
+        # Prediksi dengan model YOLO
+        results = yolo_model.predict(source=img)
+        
+        # Iterasi hasil prediksi
+        for result in results:
+            boxes = result.boxes
+            
+            # Skip jika tidak ada deteksi
+            if len(boxes) == 0:
+                continue  # Tidak ada wajah terdeteksi
+            
+            # Ambil data deteksi
+            class_indices = boxes.cls.cpu().numpy()  # Konversi ke numpy array
+            confidences = boxes.conf.cpu().numpy()
+            
+            # Iterasi setiap deteksi
+            for i in range(len(boxes)):
+                class_idx = int(class_indices[i])
+                confidence = confidences[i]
+                detected_name = yolo_model.names[class_idx].lower()
+                
+                # Kecocokan username dan threshold
+                if detected_name == user.username.lower() and confidence > 0.85:
+                    return True
+                
+            # Deteksi multi-wajah
+            if len(boxes) > 1:
+                print(f"Multiple faces detected for {user.username}")
+                return False
+        
+        return False  # Tidak ada deteksi yang valid
+
+    except Exception as e:
+        print(f"[ERROR] Proctoring verification failed: {str(e)}")
+        return False
+    
+@login_required
+@csrf_exempt
+def proctoring_check(request):
+    if request.method == 'POST':
+        image = request.FILES.get('image')
+        if not image:
+            return JsonResponse({'error': 'No image provided'}, status=400)
+        
+        # Verifikasi wajah
+        verified = verify_face_proctoring(request.user, image)
+        
+        return JsonResponse({'verified': verified})
+    
+    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+@login_required
+def proctoring_logs(request, ujian_id):
+    ujian = get_object_or_404(Ujian, pk=ujian_id)
+    logs = ProctoringLog.objects.filter(ujian=ujian)
+    return render(request, 'exams/proctoring_logs.html', {
+        'ujian': ujian,
+        'logs': logs
     })

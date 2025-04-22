@@ -4,10 +4,106 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <h1>Dashboard</h1>
-        <p class="lead">Selamat datang, {{ request.user.username }}!</p>
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>Dashboard</h1>
+            <p class="lead">Selamat datang, {{ request.user.username }}!</p>
+        </div>
     </div>
+
+    {% if user.is_guru %}
+    <!-- Tampilan untuk Guru/Admin -->
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Jumlah Siswa</h5>
+                    <p class="card-text display-4">{{ jumlah_siswa }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Jumlah Ujian</h5>
+                    <p class="card-text display-4">{{ jumlah_ujian }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card text-white bg-info h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Nama Guru</h5>
+                    <p class="card-text h4">{{ user.guru.nama_lengkap }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif user.is_siswa %}
+    <!-- Tampilan untuk Siswa -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title">Profil Siswa</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-3">Nama Lengkap</dt>
+                        <dd class="col-sm-9">{{ siswa.nama_lengkap }}</dd>
+
+                        <dt class="col-sm-3">Kelas</dt>
+                        <dd class="col-sm-9">{{ siswa.kelas.nama_kelas|default:"Belum terdaftar kelas" }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card bg-warning mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Jumlah Ujian Diikuti</h5>
+                    <p class="display-4">{{ jumlah_ujian_diikuti }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Nilai Ujian Terakhir</h5>
+                </div>
+                <div class="card-body">
+                    {% if nilai_terakhir %}
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ujian</th>
+                                <th>Tanggal</th>
+                                <th>Nilai</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ nilai_terakhir.ujian.nama_ujian }}</td>
+                                <td>{{ nilai_terakhir.tanggal_selesai|date:"d M Y H:i" }}</td>
+                                <td>{{ nilai_terakhir.nilai }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted">Belum ada riwayat ujian</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

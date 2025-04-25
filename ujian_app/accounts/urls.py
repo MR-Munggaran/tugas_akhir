@@ -15,6 +15,7 @@ urlpatterns = [
     path('students/update/<int:pk>/', views.student_update, name='student_update'),
     path('students/delete/<int:pk>/', views.student_delete, name='student_delete'),
     path('upload-voice/<int:pk>/', views.upload_voice_model, name='upload_voice'),
+    path('delete-voice/<int:pk>/', views.delete_voice_model, name='delete_voice'),
     path('voice-verification/', views.voice_verification, name='voice_verification'),
     path('face-verification/', views.face_verification, name='face_verification'),
 

@@ -1,15 +1,18 @@
-import io
+import os
+import tempfile
+import traceback
 from django.http import HttpResponseForbidden, JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.contrib.auth import update_session_auth_hash
+from django.core.exceptions import ObjectDoesNotExist
 import joblib
 import librosa
+from scipy import stats
 import numpy as np
 from ultralytics import YOLO
 from django.conf import settings
 from PIL import Image
-from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -55,76 +58,130 @@ def login_view(request):
     return render(request, 'accounts/login.html')
 
 def voice_verification(request):
-    user_id = request.session.get('pre_verified_user')
-    if not user_id:
+    try:
+        user_id = request.session.get('pre_verified_user')
+        if not user_id:
+            return redirect('login')
+        
+        user = User.objects.select_related('siswa').get(id=user_id)
+        siswa = user.siswa
+        
+        if not hasattr(siswa, 'voice_model') or not siswa.voice_model:
+            login(request, user)
+            return redirect('dashboard')
+            
+    except ObjectDoesNotExist:
         return redirect('login')
-    
-    user = User.objects.get(id=user_id)
-    if not user.is_siswa:
-        return redirect('login')
-    
-    siswa = user.siswa
-    if not siswa.voice_model:
-        login(request, user)
-        return redirect('dashboard')
-    
+
     if request.method == 'POST':
         audio = request.FILES.get('audio')
-        attempts = request.session.get('voice_attempts', 0)
-        
-        verified = verify_voice(siswa, audio)
-        
-        if verified:
-            # Langsung ke verifikasi wajah tanpa cek model
-            request.session['voice_verified'] = True
-            return redirect('face_verification')
-            
-        else:
-            attempts += 1
-            request.session['voice_attempts'] = attempts
-            
-            if attempts >= 3:
-                request.session.pop('pre_verified_user', None)
-                request.session.pop('voice_attempts', None)
-                return redirect('login')
-            
+        if not audio:
             return render(request, 'accounts/voice_verification.html', {
-                'error': f'Verifikasi gagal ({attempts}/3)',
-                'remaining': 3 - attempts
+                'error': 'Harap unggah file audio'
             })
-    
-    return render(request, 'accounts/voice_verification.html', {
-        'remaining': 3 - request.session.get('voice_attempts', 0)
-    })
 
+        # Validasi format file
+        if not audio.name.lower().endswith('.wav'):
+            return render(request, 'accounts/voice_verification.html', {
+                'error': 'Hanya format WAV yang didukung'
+            })
+
+        if audio.size > 5*1024*1024:
+            return render(request, 'accounts/voice_verification.html', {
+                'error': 'Ukuran file terlalu besar (maks 5MB)'
+            })
+
+        try:
+            verified, confidence = verify_voice(siswa, audio)
+            if verified:
+                request.session['voice_verified'] = True
+                request.session.pop('voice_attempts', None)
+                login(request, user)
+                return redirect('dashboard')
+                
+        except Exception as e:
+            error_traceback = traceback.format_exc()
+            with open("voice_verification_errors.log", "a") as log_file:
+                log_file.write(f"Error: {str(e)}\nTraceback:\n{error_traceback}\n")
+            error_msg = str(e) if str(e) else 'Kesalahan verifikasi suara'
+            return render(request, 'accounts/voice_verification.html', {
+                'error': error_msg
+            })
+
+        attempts = request.session.get('voice_attempts', 0) + 1
+        request.session['voice_attempts'] = attempts
+        
+        if attempts >= 3:
+            request.session.flush()
+            return redirect('login')
+            
+        return render(request, 'accounts/voice_verification.html', {
+            'error': f'Verifikasi gagal ({attempts}/3)',
+            'remaining': 3 - attempts
+        })
+    
+    return render(request, 'accounts/voice_verification.html')
+    
 def verify_voice(siswa, audio_file):
     try:
-        # Load model GMM
-        gmm = joblib.load(siswa.voice_model.path)
+        # Load model
+        if not os.path.exists('voice_models/ubm.joblib'):
+            raise FileNotFoundError("Model UBM tidak ditemukan")
+        if not siswa.voice_model:
+            raise ValueError("Model suara pengguna tidak tersedia")
+            
+        ubm = joblib.load('voice_models/ubm.joblib')
+        speaker_gmm = joblib.load(siswa.voice_model.path)
         
-        # Load audio dengan parameter yang sama seperti training
-        y, sr = librosa.load(audio_file, sr=16000)  # Pastikan sample rate 16kHz
+        # Proses audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            for chunk in audio_file.chunks():
+                tmp.write(chunk)
+            tmp.flush()
+            tmp.close()
+
+            # Validasi audio
+            try:
+                y, sr = librosa.load(tmp.name, sr=16000, mono=True)
+            except Exception as e:
+                raise ValueError(f"File audio rusak/tidak valid: {str(e)}")
+
+            os.unlink(tmp.name)
+            
+        # Validasi durasi
+        if len(y) < 16000*3:
+            raise ValueError("Durasi rekaman kurang dari 3 detik")
+            
+        # Ekstraksi fitur
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13, n_fft=512, hop_length=256)
+        if mfcc.shape[1] < 10:  # Minimal 10 frame
+            raise ValueError("Fitur audio tidak mencukupi")
+                # Ekstraksi fitur MFCC (pastikan parameter sama dengan training)
+        delta = librosa.feature.delta(mfcc)
+        delta2 = librosa.feature.delta(mfcc, order=2)
+        features = np.vstack([mfcc, delta, delta2]).T
+            
+        # Verifikasi
+        speaker_score = speaker_gmm.score(features)
+        ubm_score = ubm.score(features)
+        llr = speaker_score - ubm_score
         
-        # Potong/pad ke 3 detik (sesuaikan dengan durasi training)
-        max_duration = 3.0
-        y = librosa.util.fix_length(y, size=int(sr * max_duration))
+        # Normalisasi
+        z_score = stats.zscore([llr])[0]
+        normalized_score = 1 / (1 + np.exp(-z_score))
         
-        # Ekstrak fitur MFCC + delta + delta-delta
-        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        delta_mfcc = librosa.feature.delta(mfcc)
-        delta2_mfcc = librosa.feature.delta(mfcc, order=2)
-        features = np.vstack([mfcc, delta_mfcc, delta2_mfcc]).T  # (n_frames, 39)
-        
-        # Hitung rata-rata log likelihood per frame
-        log_likelihood = gmm.score(features)
-        avg_likelihood = log_likelihood / features.shape[0]
-        
-        # Threshold disesuaikan dengan hasil training
-        return avg_likelihood > -50.0  # Sesuaikan nilai threshold
+        threshold = siswa.voice_threshold if siswa.voice_threshold else -50
+        if normalized_score <= threshold:
+            raise ValueError(f"Skor terlalu rendah ({normalized_score:.2f} <= {threshold})")
+            
+        return True, normalized_score
 
     except Exception as e:
-        print(f"Verification error: {str(e)}")
-        return False
+        error_msg = f"Verification failed: {str(e)}"
+        print(error_msg)
+        with open("voice_verification_errors.log", "a") as log_file:
+            log_file.write(f"{error_msg}\n")
+        return False, 0.0
     
 # Load model once at startup
 yolo_model = YOLO(settings.YOLO_FACE_MODEL)
@@ -663,4 +720,22 @@ def proctoring_logs(request, ujian_id):
     return render(request, 'exams/proctoring_logs.html', {
         'ujian': ujian,
         'logs': logs
+    })
+
+def delete_voice_model(request, pk):
+    siswa = get_object_or_404(Siswa, pk=pk)
+    
+    # Hanya guru atau admin yang bisa menghapus
+    if not request.user.is_guru and not request.user.is_superuser:
+        return HttpResponseForbidden("Anda tidak memiliki akses")
+    
+    if request.method == 'POST':
+        # Hapus file suara yang terkait
+        if siswa.voice_model:  # Ganti dengan field yang sesuai di model Siswa
+            siswa.voice_model.delete()
+        siswa.save()
+        return redirect('student_list')
+    
+    return render(request, 'students/delete_voice.html', {
+        'siswa': siswa
     })

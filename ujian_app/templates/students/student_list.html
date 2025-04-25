@@ -34,6 +34,7 @@
             >Hapus</a
           >
           <a href="{% url 'upload_voice' student.pk %}" class="btn btn-info btn-sm">Upload Voice</a>
+          <a href="{% url 'delete_voice' student.pk %}" class="btn btn-info btn-sm">Delete Voice</a>
         </td>
       </tr>
       {% endfor %}

@@ -5,65 +5,83 @@
     <script src="https://cdn.jsdelivr.net/npm/recordrtc@5.4.6/RecordRTC.min.js"></script>
 </head>
 <body>
-    <div class="container mt-5">
+    <div class="voice-verification">
         <h2>Verifikasi Suara</h2>
-        <p>Sisa percobaan: <span id="remaining">{{ remaining }}</span></p>
-        <p><b>Saya sedang melakukan tes pengenalan suara untuk aplikasi ujian</b></p>
-        
-        <!-- Tampilkan pesan error jika ada -->
-        {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
-        {% endif %}
-
-        <!-- Tombol rekam dan stop -->
-        <button id="recordButton" class="btn btn-primary">Mulai Rekam</button>
-        <button id="stopButton" class="btn btn-danger" disabled>Stop</button>
-
-        <!-- Form untuk submit audio -->
-        <form id="audioForm" method="post" enctype="multipart/form-data" style="display: none;">
+        <form id="voiceForm" method="post" enctype="multipart/form-data">
             {% csrf_token %}
-            <input type="file" id="audioInput" name="audio" accept="audio/*" capture>
+            <div class="recorder">
+                <button type="button" id="recordButton">Mulai Rekam</button>
+                <audio id="audioPreview" controls></audio>
+                <input type="file" name="audio" id="audioInput" accept="audio/*" hidden>
+            </div>
+            <button type="submit" class="btn-submit">Verifikasi</button>
         </form>
+        
+        {% if error %}
+        <div class="alert error">{{ error }}</div>
+        {% endif %}
     </div>
-
+    
     <script>
-        let recorder; 
-        const recordButton = document.getElementById('recordButton');
-        const stopButton = document.getElementById('stopButton');
-        const audioInput = document.getElementById('audioInput');
-
-        // Mulai rekaman
-        recordButton.onclick = async () => {
-            recordButton.disabled = true;
-            stopButton.disabled = false;
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            recorder = new RecordRTC(stream, {
-                type: 'audio',
-                mimeType: 'audio/webm',
-                recorderType: RecordRTC.StereoAudioRecorder,
-                desiredSampRate: 16000 // Sesuaikan dengan sample rate training
-            });
-            recorder.startRecording();
-        };
-
-        // Stop rekaman dan submit
-        stopButton.onclick = () => {
-            recorder.stopRecording(() => {
-                const blob = recorder.getBlob();
-                const file = new File([blob], "recording.webm", { type: "audio/webm" });
-                
-                // Isi input file dengan blob
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                audioInput.files = dataTransfer.files;
-
-                // Submit form
-                document.getElementById('audioForm').submit();
-            });
-            recordButton.disabled = false;
-            stopButton.disabled = true;
-        };
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let mediaStream; // Simpan referensi stream
+    
+        recordButton.addEventListener('click', async () => {
+            try {
+                if(isRecording) {
+                    // Stop rekaman
+                    mediaRecorder.stop();
+                    mediaStream.getTracks().forEach(track => track.stop()); // Hentikan akses mikrofon
+                    recordButton.textContent = 'Mulai Rekam';
+                    isRecording = false;
+                } else {
+                    // Mulai rekaman baru
+                    audioChunks = []; // Reset chunks
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            channelCount: 1,
+                            sampleRate: 16000,
+                            sampleSize: 16
+                        }
+                    });
+                    
+                    mediaRecorder = new MediaRecorder(mediaStream);
+                    
+                    mediaRecorder.ondataavailable = (e) => {
+                        audioChunks.push(e.data);
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { 
+                        type: 'audio/wav; codecs=pcm' 
+                        });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        audioPreview.src = audioUrl;
+                        
+                        // Konversi ke File
+                        const file = new File([audioBlob], 'recording.wav', {
+                            type: 'audio/wav',
+                            lastModified: Date.now()
+                        });
+                        
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        audioInput.files = dataTransfer.files;
+                        
+                        URL.revokeObjectURL(audioUrl); // Bersihkan memory
+                    };
+    
+                    mediaRecorder.start(1000); // Ambil data tiap 1 detik
+                    recordButton.textContent = 'Stop Rekam';
+                    isRecording = true;
+                }
+            } catch (err) {
+                console.error('Error mengakses mikrofon:', err);
+                recordButton.disabled = true;
+            }
+        });
     </script>
 </body>
 </html>

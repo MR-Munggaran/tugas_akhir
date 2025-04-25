@@ -39,6 +39,9 @@ AUTHENTICATION_BACKENDS = [
     'accounts.backends.FaceAuthBackend',
 ]
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 YOLO_FACE_MODEL = os.path.join(BASE_DIR, 'face_models', 'best.pt')
 YOLO_FACE_RECOGNITION_MODEL = os.path.join(BASE_DIR, 'face_models', 'yolov8s.pt')
 FACE_THRESHOLD = 0.25 # Threshold verifikasi wajah

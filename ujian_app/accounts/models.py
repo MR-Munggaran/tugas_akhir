@@ -1,4 +1,4 @@
-from django.utils import timezone
+import os
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
@@ -15,8 +15,6 @@ class Siswa(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
     nama_lengkap = models.CharField(max_length=100)
     kelas = models.ForeignKey('Kelas', on_delete=models.SET_NULL, null=True, blank=True)
-    voice_model = models.FileField(upload_to='voice_models/', null=True, blank=True)
-    voice_threshold = models.FloatField(default=-50.0)  # Threshold dinamis
 
     def __str__(self):
         return self.nama_lengkap
@@ -97,3 +95,63 @@ class ProctoringLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     event_type = models.CharField(max_length=20, choices=EVENT_CHOICES)
     description = models.TextField()
+
+class VoiceData(models.Model):
+    user         = models.OneToOneField(User, on_delete=models.CASCADE)
+    scaler_model = models.BinaryField(null=True, blank=True)
+    gmm_model    = models.BinaryField(null=True, blank=True)
+    threshold    = models.FloatField(default=-1000.0)
+    margin       = models.FloatField(default=10.0) 
+    is_trained   = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"VoiceData for {self.user.username}"
+
+class VoiceSample(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='voice_samples')
+    audio_file = models.FileField(upload_to='voice_samples/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Sample {self.id} for {self.user.username}"
+
+    def delete(self, *args, **kwargs):
+        if self.audio_file:
+            if os.path.isfile(self.audio_file.path):
+                os.remove(self.audio_file.path)
+        super().delete(*args, **kwargs)
+    
+def user_face_path(instance, filename):
+    return f'faces/{instance.user.username}/{filename}'
+
+class UserFace(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    encoding = models.BinaryField()
+    photo = models.ImageField(upload_to=user_face_path)
+
+    def __str__(self):
+        return f"Wajah {self.user.username}"
+    
+class AugmentedFace(models.Model):
+    user_face = models.ForeignKey(
+        UserFace,
+        on_delete=models.CASCADE,
+        related_name="augmented_images"
+    )
+    # Kita hanya perlu field ImageField untuk menyimpan gambar augmentasi
+    image = models.ImageField(upload_to=user_face_path)
+    # (Optional) Anda bisa tambahkan field extra, misalnya tipe augmentasi,
+    # timestamp, atau encoding baru jika ingin.
+    augment_type = models.CharField(max_length=50, blank=True, null=True)
+
+    def __str__(self):
+        return f"Augmentasi {self.augment_type or '–'} untuk {self.user_face.user.username}"
+
+class FaceTestImage(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='face_test_images')
+    image = models.ImageField(upload_to='face_tests/%Y/%m/%d/')
+    encoding = models.BinaryField(null=True, blank=True)  # simpan encoding wajah dalam bytes
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.image.name}"

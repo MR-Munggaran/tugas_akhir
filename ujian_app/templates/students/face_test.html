@@ -1,0 +1,24 @@
+{% extends "_base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>Upload Gambar Test Wajah - {{ student.user.username }}</h2>
+
+{% if error %}
+<div style="color: red;">{{ error }}</div>
+{% endif %}
+
+{% if saved_image_url %}
+<h4>Gambar berhasil diupload:</h4>
+<img src="{{ saved_image_url }}" alt="Test Image" style="max-height: 200px;">
+{% endif %}
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.image.label_tag }}<br>
+    {{ form.image }}<br><br>
+
+    <button type="submit">Upload</button>
+</form>
+
+{% endblock %}

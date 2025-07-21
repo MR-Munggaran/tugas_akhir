@@ -26,7 +26,11 @@ SECRET_KEY = 'django-insecure-p8de+d@r@&w%$+e&lv+#7jgl=1=#5(i8t5*qkc1ufhhh+jcf9$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://f87a-66-96-225-147.ngrok-free.app"
+]
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -35,16 +39,17 @@ AUTH_USER_MODEL = 'accounts.User'
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'accounts.backends.VoiceAuthBackend',  # Tambahkan ini
     'accounts.backends.FaceAuthBackend',
 ]
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+VOICE_UBM = os.path.join(BASE_DIR, 'voice_ubm', 'ubm_global_1.pkl')
 YOLO_FACE_MODEL = os.path.join(BASE_DIR, 'face_models', 'best.pt')
-YOLO_FACE_RECOGNITION_MODEL = os.path.join(BASE_DIR, 'face_models', 'yolov8s.pt')
-FACE_THRESHOLD = 0.25 # Threshold verifikasi wajah
+FACE_THRESHOLD = 0.5 # Threshold verifikasi wajah
+VOICE_THRESHOLD_DEFAULT = -120.0
+VOICE_VERIFICATION_MARGIN = 10.0
 
 INSTALLED_APPS = [
     'django.contrib.admin',

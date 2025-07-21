@@ -1,0 +1,311 @@
+def verify_face(user, image_file):
+    try:
+        # Validasi gambar
+        img = Image.open(image_file)
+        img.verify()
+        image_file.seek(0)  # Reset pointer
+        
+        # Konversi ke RGB dan kembalikan sebagai PIL Image
+        img = Image.open(image_file).convert('RGB')
+        
+        # Prediksi menggunakan YOLOv8 dengan PIL Image
+        results = yolo_model.predict(source=img)  # Langsung kirim PIL Image
+        
+        # Proses hasil prediksi
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                class_idx = int(box.cls.item())
+                detected_name = yolo_model.names[class_idx].lower()
+                confidence = box.conf.item()
+                
+                if (detected_name == user.username.lower() and 
+                    confidence > getattr(settings, 'FACE_THRESHOLD', 0.7)):
+                    return True
+        return False
+
+    except Exception as e:
+        print(f"[ERROR] Face verification failed: {str(e)}")
+        return False
+
+def face_verification(request):
+    user_id = request.session.get('pre_verified_user')
+    if not user_id:
+        return redirect('login')
+    
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return redirect('login')
+    
+    if request.method == 'POST':
+        image = request.FILES.get('image')
+        if not image:
+            return render(request, 'accounts/face_verification.html', {'error': 'Gambar tidak ditemukan'})
+        
+        verified = verify_face(user, image)
+        attempts = request.session.get('face_attempts', 0)
+        
+        if verified:
+            request.session['face_verified_user'] = user.id
+            for key in ['pre_verified_user', 'face_attempts']:
+                request.session.pop(key, None)
+            return redirect('voice_verification')
+        
+        attempts += 1
+        request.session['face_attempts'] = attempts
+        
+        if attempts >= 3:
+            request.session.flush()
+            return redirect('login')
+            
+        return render(request, 'accounts/face_verification.html', {
+            'error': f'Verifikasi gagal ({attempts}/3)',
+            'remaining': 3 - attempts
+        })
+    
+    return render(request, 'accounts/face_verification.html', {
+        'remaining': 3 - request.session.get('face_attempts', 0)
+    })
+
+
+# ---------- Helper: MFCC Extraction ----------
+def extract_mfcc(file_path, max_pad_len=100):
+    try:
+        temp_wav = file_path + ".wav_conv"
+        AudioSegment.from_file(file_path).export(temp_wav, format="wav")
+        audio, sr = sf.read(temp_wav, dtype='float32')
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=1)
+        mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=40)
+        os.remove(temp_wav)
+        return mfcc.T
+    except Exception as e:
+        print(f"[ERROR] extract_mfcc failed: {e}")
+        if os.path.exists(temp_wav): os.remove(temp_wav)
+        return None
+
+# ---------- Training: upload and fit GMM + Scaler ----------
+@login_required
+@user_passes_test(is_guru_or_admin)
+def voice_upload(request, student_id):
+    student = get_object_or_404(Siswa, pk=student_id)
+    user = student.user
+    form = VoiceUploadForm(request.POST or None, request.FILES or None)
+    if request.method == 'POST' and form.is_valid():
+        files = request.FILES.getlist('audio')
+        if not files:
+            form.add_error('audio', 'Upload minimal satu file audio')
+        else:
+            all_mfcc = []
+            user_train_dir = os.path.join(settings.MEDIA_ROOT, 'voice_train', str(user.id))
+            os.makedirs(user_train_dir, exist_ok=True)
+
+            for f in files:
+                filename = f"{uuid.uuid4()}_{f.name}"
+                save_path = os.path.join(user_train_dir, filename)
+                with open(save_path, 'wb') as fh:
+                    for chunk in f.chunks():
+                        fh.write(chunk)
+
+                # Simpan record VoiceSample di DB
+                VoiceSample.objects.create(user=user, audio_file=os.path.join('voice_train', str(user.id), filename))
+
+                feats = extract_mfcc(save_path)
+                if feats is not None:
+                    all_mfcc.append(feats)
+
+            if not all_mfcc:
+                form.add_error('audio', 'Ekstraksi fitur gagal untuk semua file')
+            else:
+                data = np.vstack(all_mfcc)
+                scaler = StandardScaler().fit(data)
+                scaled = scaler.transform(data)
+                gmm = GaussianMixture(n_components=8, covariance_type='diag', n_init=3).fit(scaled)
+
+                log_likelihoods = gmm.score_samples(scaled)
+                mean_ll = np.mean(log_likelihoods)
+                std_ll = np.std(log_likelihoods)
+                threshold = float(mean_ll - 0.5 * std_ll)
+
+                vd, _ = VoiceData.objects.get_or_create(user=user)
+                buf_s, buf_g = io.BytesIO(), io.BytesIO()
+                joblib.dump(scaler, buf_s)
+                joblib.dump(gmm, buf_g)
+                vd.scaler_model = buf_s.getvalue()
+                vd.gmm_model = buf_g.getvalue()
+                vd.threshold = threshold
+                vd.is_trained = True
+                vd.save()
+
+                print(f"[DEBUG] mean_ll={mean_ll}, std_ll={std_ll}, threshold={threshold}")
+                return redirect('student_list')
+
+    return render(request, 'students/upload_voice.html', {'form': form, 'student': student})
+
+@login_required
+@user_passes_test(is_guru_or_admin)
+def delete_voice_samples(request, student_id):
+    if request.method == 'POST':
+        student = get_object_or_404(Siswa, pk=student_id)
+        user = student.user
+        samples = VoiceSample.objects.filter(user=user)
+
+        # Hapus file dan record voice samples
+        for sample in samples:
+            sample.audio_file.delete(save=False)  # hapus file fisik
+        samples.delete()  # hapus record di DB
+
+        messages.success(request, f"Semua sample suara untuk {student.nama_lengkap} telah dihapus.")
+        return redirect('student_list')
+    else:
+        messages.error(request, "Metode request tidak diizinkan.")
+        return redirect('student_list')
+
+# ---------- Verification: load scaler + GMM, test sample ----------
+def verify_voice(user, audio_file):
+    vd = VoiceData.objects.get(user=user)
+    scaler = joblib.load(io.BytesIO(vd.scaler_model))
+    gmm    = joblib.load(io.BytesIO(vd.gmm_model))
+    threshold = vd.threshold  # ambil threshold dari DB
+    margin = vd.margin
+
+    temp   = f"verify_{user.id}.tmp"
+    with open(temp, 'wb') as f:
+        for chunk in audio_file.chunks(): f.write(chunk)
+    try:
+        mfcc = extract_mfcc(temp)
+        if mfcc is None:
+            return False
+        scaled = scaler.transform(mfcc)
+        mean_ll = gmm.score(scaled)
+        adjusted_threshold = threshold - margin   
+        
+        total_ll = gmm.score_samples(scaled).sum()
+        print(f"[DEBUG] mean_ll={mean_ll:.2f}, "
+              f"threshold={threshold:.2f}, "
+              f"margin={margin:.2f}, "
+              f"adj_thresh={adjusted_threshold:.2f}")
+        
+        return mean_ll > adjusted_threshold
+    finally:
+        os.remove(temp)
+
+
+@login_required
+def enroll_face(request, pk):
+    siswa = get_object_or_404(Siswa, pk=pk)
+    user = siswa.user
+
+    if request.method == 'POST':
+        image = request.FILES.get('image')
+        if not image:
+            return render(request, 'students/face_enroll.html', {'error': 'Gambar tidak ditemukan', 'student': siswa})
+
+        try:
+            # Buka gambar dan ubah ke RGB
+            img = Image.open(image)
+            img.verify()
+            image.seek(0)
+            img = Image.open(image).convert('RGB')
+            img_array = np.array(img)
+
+            # Deteksi wajah dengan YOLO
+            results = yolo_model(img_array)[0]
+            boxes = results.boxes.xyxy.cpu().numpy()
+
+            if len(boxes) == 0:
+                return render(request, 'students/face_enroll.html', {'error': 'Wajah tidak terdeteksi oleh YOLO.', 'student': siswa})
+
+            # Ambil wajah pertama dan ubah ke format top, right, bottom, left
+            x1, y1, x2, y2 = boxes[0][:4].astype(int)
+            top = max(0, y1)
+            right = min(img_array.shape[1], x2)
+            bottom = min(img_array.shape[0], y2)
+            left = max(0, x1)
+            face_location = [(top, right, bottom, left)]
+
+            # Ekstrak encoding
+            encodings = face_recognition.face_encodings(img_array, face_location)
+            if not encodings:
+                return render(request, 'students/face_enroll.html', {'error': 'Face recognition gagal ekstrak fitur wajah.', 'student': siswa})
+            
+            encoding = encodings[0]
+
+            # Simpan gambar sebagai file
+            image_io = io.BytesIO()
+            img.save(image_io, format='JPEG')
+            image_file = ContentFile(image_io.getvalue(), 'face.jpg')
+
+            # Simpan ke database
+            UserFace.objects.update_or_create(
+                user=user,
+                defaults={
+                    'encoding': encoding.tobytes(),
+                    'photo': image_file
+                }
+            )
+
+            return render(request, 'students/face_enroll.html', {'success': 'Wajah berhasil disimpan!', 'student': siswa})
+
+        except Exception as e:
+            print(f"[ERROR] Gagal menyimpan wajah: {str(e)}")
+            return render(request, 'students/face_enroll.html', {'error': 'Terjadi kesalahan saat memproses gambar.', 'student': siswa})
+
+    return render(request, 'students/face_enroll.html', {'student': siswa})
+
+
+==========NEW===============
+def verify_face(user, image_file):
+    try:
+        # Buka gambar dan konversi ke RGB
+        img = Image.open(image_file)
+        img.verify()
+        image_file.seek(0)
+        img = Image.open(image_file).convert('RGB')
+        img_array = np.array(img)
+
+        # Deteksi wajah dengan YOLO
+        results = yolo_model(img_array)[0]
+        boxes = results.boxes.xyxy.cpu().numpy()
+
+        if len(boxes) == 0:
+            print("[INFO] Tidak ada wajah terdeteksi oleh YOLO.")
+            return False
+
+        # Ambil bounding box dari wajah pertama dan ubah ke format (top, right, bottom, left)
+        x1, y1, x2, y2 = boxes[0][:4].astype(int)
+        top = max(0, y1)
+        right = min(img_array.shape[1], x2)
+        bottom = min(img_array.shape[0], y2)
+        left = max(0, x1)
+        face_location = [(top, right, bottom, left)]
+
+        # Ekstrak encoding langsung dari gambar asli dan lokasi wajah
+        uploaded_encodings = face_recognition.face_encodings(img_array, face_location)
+        if not uploaded_encodings:
+            print("[INFO] Face recognition gagal ekstrak wajah.")
+            return False
+
+        uploaded_encoding = uploaded_encodings[0]
+
+        try:
+            user_face = UserFace.objects.get(user=user)
+            known_encoding = np.frombuffer(user_face.encoding)
+        except UserFace.DoesNotExist:
+            print("[ERROR] User belum memiliki data wajah.")
+            return False
+
+        distance = face_recognition.face_distance([known_encoding], uploaded_encoding)[0]
+        threshold = getattr(settings, 'FACE_THRESHOLD', 0.45)
+
+        if distance <= threshold:
+            print(f"[INFO] Wajah cocok dengan jarak: {distance:.4f}")
+            return True
+
+        print(f"[INFO] Wajah tidak cocok. Jarak: {distance:.4f}")
+        return False
+
+    except Exception as e:
+        print(f"[ERROR] Face verification failed: {str(e)}")
+        return False

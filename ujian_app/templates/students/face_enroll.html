@@ -1,0 +1,25 @@
+{% extends '_base.html' %}
+
+{% block title %}Upload Wajah{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <h2>Upload Wajah untuk {{ student.nama_lengkap }}</h2>
+
+  {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="image" class="form-label">Pilih Gambar Wajah:</label>
+      <input type="file" name="image" class="form-control" required />
+    </div>
+    <button type="submit" class="btn btn-primary">Simpan Wajah</button>
+  </form>
+</div>
+{% endblock %}

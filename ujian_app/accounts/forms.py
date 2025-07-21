@@ -18,14 +18,6 @@ class GuruRegistrationForm(UserCreationForm):
             Guru.objects.create(user=user, nama_lengkap=self.cleaned_data['nama_lengkap'])
         return user
 
-class VoiceModelForm(forms.ModelForm):
-    class Meta:
-        model = Siswa
-        fields = ['voice_model']
-        widgets = {
-            'voice_model': forms.FileInput(attrs={'accept': '.joblib'})
-        }
-
 class SiswaForm(forms.ModelForm):
     class Meta:
         model = Siswa
@@ -183,3 +175,15 @@ class GuruProfileForm(ProfileEditForm):
 class SiswaProfileForm(ProfileEditForm):
     class Meta(ProfileEditForm.Meta):
         model = Siswa
+
+class VoiceUploadForm(forms.Form):
+    audio = forms.FileField(
+        label='Upload Rekaman Suara (.wav)',
+        help_text='Pilih satu atau beberapa file audio.'
+    )
+
+class FaceTestImageForm(forms.Form):
+    image = forms.FileField(
+        label="Upload Gambar Test Wajah",
+        required=True
+    )

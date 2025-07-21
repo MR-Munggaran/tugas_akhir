@@ -1,5 +1,4 @@
 from django.urls import path
-from django.views.decorators.csrf import csrf_exempt
 from . import views
 
 urlpatterns = [
@@ -14,9 +13,6 @@ urlpatterns = [
     path('students/create/', views.student_create, name='student_create'),
     path('students/update/<int:pk>/', views.student_update, name='student_update'),
     path('students/delete/<int:pk>/', views.student_delete, name='student_delete'),
-    path('upload-voice/<int:pk>/', views.upload_voice_model, name='upload_voice'),
-    path('delete-voice/<int:pk>/', views.delete_voice_model, name='delete_voice'),
-    path('voice-verification/', views.voice_verification, name='voice_verification'),
     path('face-verification/', views.face_verification, name='face_verification'),
 
     # Kelas Management
@@ -48,4 +44,14 @@ urlpatterns = [
     path('nilai/', views.nilai_siswa, name='nilai_siswa'),
     path('nilai/<int:ujian_id>/', views.nilai_guru, name='nilai_guru'),
     path('nilai/<int:ujian_id>/detail/', views.nilai_detail, name='nilai_detail'),
+
+    path('student/<int:student_id>/voice-upload/', views.voice_upload, name='voice_upload'),
+    path('voice-verification/', views.voice_verification, name='voice_verification'),
+    path('delete_voice_samples/<int:student_id>/', views.delete_voice_samples, name='delete_voice_samples'),
+    path('enroll-face/<int:pk>/', views.enroll_face, name='enroll_face'),
+    path('face-delete/<int:pk>/', views.delete_face, name='delete_face'),
+
+    path('face-test/<int:pk>/', views.test_face, name='face_test'),
+    path('face-evaluation/', views.face_evaluation_view, name='face_evaluation'),
+    path('voice-evaluation/', views.voice_evaluation_view, name='voice_evaluation'),
 ]

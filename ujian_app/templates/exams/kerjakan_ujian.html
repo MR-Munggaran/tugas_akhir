@@ -10,14 +10,7 @@
     <div class="container mt-5">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>{{ ujian.nama_ujian }}</h1>
-            <div class="d-flex align-items-center gap-3">
-                <!-- Pindahkan kamera ke sini -->
-                <div class="webcam-container">
-                    <video id="webcam" autoplay playsinline style="width: 200px; border: 2px solid #dc3545; border-radius: 8px;"></video>
-                    <div id="proctoring-status" class="mt-1 text-center small text-danger"></div>
-                </div>
-                <canvas id="proctorCanvas" style="display:none;"></canvas>
-                
+            <div class="d-flex align-items-center gap-3">              
                 <div class="timer-container">
                     <div class="timer bg-danger text-white p-2 rounded">
                         <span id="timer">00:00:00</span>
@@ -35,7 +28,7 @@
     
     <div class="row">
         <!-- Navigasi Soal -->
-        <div class="col-md-3 mb-4">
+        <div class="col-md-3 mb-4 ms-2">
             <div class="sticky-top pt-3">
                 <div class="list-group">
                     {% for soal in soal_list %}
@@ -50,7 +43,7 @@
         </div>
     
         <!-- Konten Soal -->
-        <div class="col-md-9">
+        <div class="col-md-8">
             <form id="ujianForm" method="post">
                 {% csrf_token %}
                 {% for soal in soal_list %}
@@ -201,87 +194,6 @@
                 e.returnValue = '';
             }
         });
-    </script>
-
-    <script>
-        // Variabel kontrol proctoring
-        let proctorInterval;
-
-        // Fungsi capture dan kirim gambar
-        async function captureAndVerify() {
-            const video = document.getElementById('webcam');
-            const canvas = document.getElementById('proctorCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('image', blob, 'proctor.jpg');
-                
-                try {
-                    const response = await fetch("{% url 'proctoring_check' %}", {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': '{{ csrf_token }}'
-                        },
-                        body: formData
-                    });
-                    
-                    const result = await response.json();
-                    const statusDiv = document.getElementById('proctoring-status');
-                    
-                    if (result.verified) {
-                        statusDiv.textContent = 'Verified';
-                        statusDiv.className = 'text-success';
-                    } else {
-                        statusDiv.textContent = 'Face Mismatch!';
-                        statusDiv.className = 'text-danger';
-                        // Trigger peringatan atau tindakan lain
-                    }
-                } catch (error) {
-                    console.error('Proctoring error:', error);
-                    document.getElementById('proctoring-status').textContent = 'Error';
-                }
-            }, 'image/jpeg');
-        }
-
-        // Inisialisasi proctoring
-        document.addEventListener('DOMContentLoaded', async () => {
-        // 1. Inisialisasi webcam
-        const video = document.getElementById('webcam');
-        
-        try {
-            // Minta akses ke webcam
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    facingMode: "user" // Kamera depan
-                }
-            });
-            
-            // Tampilkan video stream
-            video.srcObject = stream;
-            await new Promise(resolve => video.onloadedmetadata = resolve);
-            video.play();
-            
-        } catch (err) {
-            console.error('Error accessing webcam:', err);
-            alert('Akses webcam gagal! Pastikan kamera tersedia dan izin diberikan.');
-            // Nonaktifkan fitur proctoring atau alihkan ke error page
-            return;
-        }
-
-        // 2. Inisialisasi canvas untuk capture
-        const canvas = document.getElementById('proctorCanvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        
-        // 3. Mulai interval proctoring
-        proctorInterval = setInterval(captureAndVerify, 15000);
-    });
     </script>
 
     <style>

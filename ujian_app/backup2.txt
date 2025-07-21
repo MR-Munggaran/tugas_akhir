@@ -1,0 +1,60 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<h2>Evaluasi Face Recognition</h2>
+
+<h3>Confusion Matrix (Gambar)</h3>
+<img src="data:image/png;base64,{{ cm_image }}" alt="Confusion Matrix Image" style="max-width: 500px; height: auto;" />
+
+<h3>Confusion Matrix (Tabel)</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; margin-bottom: 20px;">
+    <thead>
+        <tr>
+            <th></th>
+            <th>No Match (Predicted)</th>
+            <th>Match (Predicted)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <th>No Match (True)</th>
+            <td>{{ confusion_matrix.0.0 }}</td>
+            <td>{{ confusion_matrix.0.1 }}</td>
+        </tr>
+        <tr>
+            <th>Match (True)</th>
+            <td>{{ confusion_matrix.1.0 }}</td>
+            <td>{{ confusion_matrix.1.1 }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Classification Report</h3>
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th>Label</th>
+            <th>Precision</th>
+            <th>Recall</th>
+            <th>F1-Score</th>
+            <th>Support</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for label, metrics in classification_report.items %}
+            {% if label != 'accuracy' and label != 'macro avg' and label != 'weighted avg' %}
+            <tr>
+                <td>{{ label }}</td>
+                <td>{{ metrics.precision|floatformat:2 }}</td>
+                <td>{{ metrics.recall|floatformat:2 }}</td>
+                <td>{{ metrics.f1_score|floatformat:2 }}</td>
+                <td>{{ metrics.support }}</td>
+            </tr>
+            {% endif %}
+        {% endfor %}
+    </tbody>
+</table>
+
+<p><strong>Accuracy:</strong> {{ classification_report.accuracy|floatformat:2 }}</p>
+
+{% endblock %}

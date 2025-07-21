@@ -1,16 +1,30 @@
-<!-- upload_voice.html -->
 {% extends '_base.html' %}
-
-{% block title %}Upload Model Suara - {{ siswa.nama_lengkap }}{% endblock %}
-
+{% block title %}Upload Suara{% endblock %}
 {% block content %}
 <div class="container mt-5">
-  <h2>Upload Model Suara untuk {{ siswa.nama_lengkap }}</h2>
-  <form method="post" enctype="multipart/form-data">
+  <h2 class="mb-4">Upload Suara untuk {{ student.nama_lengkap }}</h2>
+  
+  <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="btn btn-success">Upload Model</button>
-    <a href="{% url 'student_list' %}" class="btn btn-secondary">Batal</a>
+    
+    <div class="mb-3">
+      <label for="id_audio" class="form-label">Upload Rekaman Suara (.wav)</label>
+      <input type="file" 
+             name="audio" 
+             id="id_audio" 
+             multiple
+             class="form-control" 
+             accept=".wav"
+             required>
+      <div class="invalid-feedback">
+        Harap pilih file audio dalam format .wav
+      </div>
+      <small class="form-text text-muted">Anda dapat mengunggah lebih dari satu file sekaligus</small>
+    </div>
+    
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-cloud-upload me-2"></i>Upload
+    </button>
   </form>
 </div>
 {% endblock %}

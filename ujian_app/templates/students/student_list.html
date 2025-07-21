@@ -6,9 +6,7 @@
 {% block content %}
 <div class="container mt-5">
   <h1>Student List</h1>
-  <a href="{% url 'student_create' %}" class="btn btn-primary mb-3"
-    >Tambah Siswa</a
-  >
+  <a href="{% url 'student_create' %}" class="btn btn-primary mb-3">Tambah Siswa</a>
   <table class="table table-bordered">
     <thead class="table-dark">
       <tr>
@@ -23,18 +21,26 @@
         <td>{{ student.nama_lengkap }}</td>
         <td>{{ student.kelas.nama_kelas }}</td>
         <td>
-          <a
-            href="{% url 'student_update' student.pk %}"
-            class="btn btn-warning btn-sm"
-            >Edit</a
-          >
-          <a
-            href="{% url 'student_delete' student.pk %}"
-            class="btn btn-danger btn-sm"
-            >Hapus</a
-          >
-          <a href="{% url 'upload_voice' student.pk %}" class="btn btn-info btn-sm">Upload Voice</a>
-          <a href="{% url 'delete_voice' student.pk %}" class="btn btn-info btn-sm">Delete Voice</a>
+          <a href="{% url 'student_update' student.pk %}" class="btn btn-warning btn-sm">Edit</a>
+          <a href="{% url 'student_delete' student.pk %}" class="btn btn-danger btn-sm">Hapus</a>
+          <a href="{% url 'voice_upload' student.pk %}" class="btn btn-info btn-sm">Upload Suara</a>
+          <a href="{% url 'enroll_face' student.pk %}" class="btn btn-secondary btn-sm">Upload Wajah</a>
+          {% if student.user.voice_samples.exists %}
+            <form action="{% url 'delete_voice_samples' student.pk %}" method="post" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Yakin ingin menghapus semua sample suara siswa ini?');">
+                Hapus Suara
+              </button>
+            </form>
+          {% endif %}
+
+          <!-- Tombol Hapus Wajah jika data wajah tersedia -->
+          {% if student.user.userface %}
+          <form action="{% url 'delete_face' student.pk %}" method="post" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">Hapus Wajah</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

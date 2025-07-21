@@ -1,87 +1,143 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Rekam Suara</title>
-    <script src="https://cdn.jsdelivr.net/npm/recordrtc@5.4.6/RecordRTC.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verifikasi Suara Langsung</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
 </head>
 <body>
-    <div class="voice-verification">
-        <h2>Verifikasi Suara</h2>
-        <form id="voiceForm" method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="recorder">
-                <button type="button" id="recordButton">Mulai Rekam</button>
-                <audio id="audioPreview" controls></audio>
-                <input type="file" name="audio" id="audioInput" accept="audio/*" hidden>
-            </div>
-            <button type="submit" class="btn-submit">Verifikasi</button>
-        </form>
-        
-        {% if error %}
-        <div class="alert error">{{ error }}</div>
-        {% endif %}
+<div class="container mt-5">
+  <h2 class="mb-4">Verifikasi Suara Langsung</h2>
+
+  {% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <p class="card-text">Rekam suara Anda untuk verifikasi identitas</p>
+      <strong class="card-text">Harap refresh jika identfikasi gagal</strong>
+      <p class="card-text"><strong>Baca:</strong> Tolong nyalakan lampu ruang tamu dan matikan kipas angin.</p>
+
+      <form id="voiceForm" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <button type="button" id="startBtn" class="btn btn-success">Mulai Rekam</button>
+          <button type="button" id="stopBtn" class="btn btn-danger" disabled>Stop Rekam</button>
+          <span id="status" class="text-muted ms-3">Tidak merekam</span>
+        </div>
+        <!-- Input file audio disembunyikan, tapi tetap dibutuhkan -->
+        <input type="file" name="audio" id="audioFile" class="form-control d-none" />
+        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Verifikasi Suara</button>
+      </form>
     </div>
-    
-    <script>
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let mediaStream; // Simpan referensi stream
-    
-        recordButton.addEventListener('click', async () => {
-            try {
-                if(isRecording) {
-                    // Stop rekaman
-                    mediaRecorder.stop();
-                    mediaStream.getTracks().forEach(track => track.stop()); // Hentikan akses mikrofon
-                    recordButton.textContent = 'Mulai Rekam';
-                    isRecording = false;
-                } else {
-                    // Mulai rekaman baru
-                    audioChunks = []; // Reset chunks
-                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            channelCount: 1,
-                            sampleRate: 16000,
-                            sampleSize: 16
-                        }
-                    });
-                    
-                    mediaRecorder = new MediaRecorder(mediaStream);
-                    
-                    mediaRecorder.ondataavailable = (e) => {
-                        audioChunks.push(e.data);
-                    };
-                    
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { 
-                        type: 'audio/wav; codecs=pcm' 
-                        });
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        audioPreview.src = audioUrl;
-                        
-                        // Konversi ke File
-                        const file = new File([audioBlob], 'recording.wav', {
-                            type: 'audio/wav',
-                            lastModified: Date.now()
-                        });
-                        
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(file);
-                        audioInput.files = dataTransfer.files;
-                        
-                        URL.revokeObjectURL(audioUrl); // Bersihkan memory
-                    };
-    
-                    mediaRecorder.start(1000); // Ambil data tiap 1 detik
-                    recordButton.textContent = 'Stop Rekam';
-                    isRecording = true;
-                }
-            } catch (err) {
-                console.error('Error mengakses mikrofon:', err);
-                recordButton.disabled = true;
-            }
-        });
-    </script>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const status = document.getElementById('status');
+  const submitBtn = document.getElementById('submitBtn');
+  const voiceForm = document.getElementById('voiceForm');
+  const audioFileInput = document.getElementById('audioFile');
+
+  let mediaRecorder;
+  let audioChunks = [];
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.textContent = 'Browser tidak mendukung perekaman suara';
+    status.className = 'text-danger';
+    return;
+  }
+
+  startBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+
+      audioChunks = [];
+      mediaRecorder.ondataavailable = e => {
+        audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunks, { type: 'audio/wav' });
+        const file = new File([blob], "voice_recording.wav", { type: 'audio/wav', lastModified: Date.now() });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        audioFileInput.files = dataTransfer.files;
+        submitBtn.disabled = false;
+      };
+
+      mediaRecorder.start();
+      status.textContent = 'Sedang merekam...';
+      status.className = 'text-warning';
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    } catch (err) {
+      console.error('Error mengakses mikrofon:', err);
+      status.textContent = 'Gagal mengakses mikrofon';
+      status.className = 'text-danger';
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    mediaRecorder.stop();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    status.textContent = 'Rekaman selesai';
+    status.className = 'text-success';
+  });
+
+  voiceForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    if (!audioFileInput.files.length) {
+      alert('Silakan rekam suara terlebih dahulu');
+      return;
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+    const formData = new FormData(voiceForm);
+
+    fetch("{% url 'voice_verification' %}", {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-CSRFToken': csrftoken },
+      credentials: 'same-origin'
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.redirect) {
+        window.location.href = data.redirect;
+      } else if (data.error) {
+        alert(data.error);
+      }
+    })
+    .catch(err => {
+      console.error('Error:', err);
+      alert('Terjadi kesalahan saat mengirim rekaman');
+    });
+  });
+});
+</script>
 </body>
 </html>
